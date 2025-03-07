@@ -5,6 +5,7 @@ export function addUserToServer(serverId: string, userId: string) {
         activeUsers.set(serverId, new Set());
     }
     activeUsers.get(serverId)?.add(userId);
+    console.log(`User ${userId} added to Server ${serverId}.`);
 }
 
 export function removeUserFromServer(serverId: string, userId: string) {
