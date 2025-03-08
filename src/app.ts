@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import errorHandler from "./middleware/errorHandler";
 import { config } from "./config/dotenv.config";
+import * as ServerRoute from "./routes/server.routes";
 
 const app = express();
 
@@ -13,9 +14,7 @@ app.use(cors({
     credentials: true
 }));
 
-app.get("/", (req, res) => {
-    res.send("Hello World!");
-})
+app.use("/api/server", ServerRoute.default);
 
 app.use(errorHandler);
 
