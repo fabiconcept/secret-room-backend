@@ -1,4 +1,3 @@
-import { Server as HTTPServer } from 'http';
 import { Server as SocketServer, Socket } from 'socket.io';
 import { Server } from '../models/server.model';
 import { io } from '../../server';
@@ -8,14 +7,14 @@ class ServerSocketService {
     private static instance: ServerSocketService;
     private io: SocketServer;
 
-    private constructor(server: HTTPServer) {
-        this.io = io
+    private constructor() {
+        this.io = io;
         this.setupSocketHandlers();
     }
 
-    public static getInstance(server?: HTTPServer): ServerSocketService {
-        if (!ServerSocketService.instance && server) {
-            ServerSocketService.instance = new ServerSocketService(server);
+    public static getInstance(): ServerSocketService {
+        if (!ServerSocketService.instance) {
+            ServerSocketService.instance = new ServerSocketService();
         }
         return ServerSocketService.instance;
     }
@@ -105,10 +104,7 @@ class ServerSocketService {
     }
 }
 
-export const initializeSocketService = (server: HTTPServer): ServerSocketService => {
-    return ServerSocketService.getInstance(server);
-};
-
+// Export singleton instance
 export const getSocketService = (): ServerSocketService => {
     return ServerSocketService.getInstance();
 };

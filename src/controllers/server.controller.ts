@@ -78,22 +78,13 @@ class ServerController implements IServerController {
             ...this.VALID_CHARS.uppercase,
             ...this.VALID_CHARS.lowercase,
             ...this.VALID_CHARS.numbers,
-            ...this.VALID_CHARS.specialChars
+            ...this.VALID_CHARS.specialChars,
+            ...this.VALID_CHARS.base64Chars
         ]);
 
         const invalidChars = [...encryptionKey].filter(char => !validChars.has(char));
         if (invalidChars.length > 0) {
             throw new AppError(400, `Invalid characters in encryption key: ${invalidChars.join(' ')}`);
-        }
-
-        // Ensure at least one character from each required set
-        const hasUppercase = [...this.VALID_CHARS.uppercase].some(char => encryptionKey.includes(char));
-        const hasLowercase = [...this.VALID_CHARS.lowercase].some(char => encryptionKey.includes(char));
-        const hasNumber = [...this.VALID_CHARS.numbers].some(char => encryptionKey.includes(char));
-        const hasSpecial = [...this.VALID_CHARS.specialChars].some(char => encryptionKey.includes(char));
-
-        if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
-            throw new AppError(400, "Encryption key must contain at least one uppercase letter, one lowercase letter, one number, and one special character");
         }
     }
 
@@ -132,6 +123,11 @@ class ServerController implements IServerController {
             await server.save();
 
             const formattedResponse = this.formatResponse(serverData);
+
+            console.log({
+                serverData,
+                formattedResponse
+            })
 
             // Get socket service and emit server creation event
             const socketService = getSocketService();

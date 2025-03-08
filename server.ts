@@ -5,7 +5,6 @@ import { Server } from "socket.io";
 import { config } from "./src/config/dotenv.config";
 import connectDB from "./src/config/db";
 
-
 // Constants
 const PORT = config.PORT;
 const HOST = config.HOST;
