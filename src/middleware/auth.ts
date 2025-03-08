@@ -1,23 +1,50 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
 import { config } from "../config/dotenv.config";
+import AppError from "../types/error.class";
 
-interface AuthRequest extends Request {
-    user?: any;
+export interface AuthRequest extends Request {
+    apiKey?: string;
 }
 
-export const authenticateUser = (req: AuthRequest, res: Response, next: NextFunction) => {
-    const token = req.header("Authorization")?.split(" ")[1];
+class AuthMiddleware {
+    private static instance: AuthMiddleware;
+    private readonly API_KEY_HEADER = "X-API-Key";
 
-    if (!token) {
-        return res.status(401).json({ message: "Access denied. No token provided." });
+    private constructor() { }
+
+    public static getInstance(): AuthMiddleware {
+        if (!AuthMiddleware.instance) {
+            AuthMiddleware.instance = new AuthMiddleware();
+        }
+        return AuthMiddleware.instance;
     }
 
-    try {
-        const decoded = jwt.verify(token, config.JWT_SECRET);
-        req.user = decoded;
-        next(); // Pass control to the next middleware/route handler
-    } catch (error) {
-        return res.status(401).json({ message: "Invalid or expired token." });
+    private validateApiKey(apiKey: string | undefined): string {
+        if (!apiKey) {
+            throw new AppError(401, "Access denied. No API key provided.");
+        }
+
+        if (apiKey !== config.API_KEY) {
+            throw new AppError(401, "Invalid API key.");
+        }
+
+        return apiKey;
     }
-};
+
+    public authenticate = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+        try {
+            const apiKey = this.validateApiKey(req.header(this.API_KEY_HEADER));
+            req.apiKey = apiKey;
+            next();
+        } catch (error) {
+            if (error instanceof AppError) {
+                res.status(error.statusCode).json({ message: error.message });
+            } else {
+                res.status(500).json({ message: "Internal server error during authentication." });
+            }
+        }
+    }
+}
+
+// Export singleton instance method
+export const authenticateUser = AuthMiddleware.getInstance().authenticate;
