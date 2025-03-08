@@ -190,9 +190,6 @@ class ServerController implements IServerController {
                 throw new AppError(410, "Server has expired and been deleted");
             }
 
-            // Get active users for this server
-            const activeUsers = getActiveUsers(serverId);
-
             response.status(200).json({
                 message: "Server found",
                 data: {
@@ -201,7 +198,6 @@ class ServerController implements IServerController {
                     expiration: server.expiresAt,
                     global_invitation_id: server.globalInvitationId,
                     owner: server.owner,
-                    active_users: activeUsers
                 }
             });
         } catch (error) {
