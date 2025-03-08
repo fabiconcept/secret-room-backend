@@ -8,14 +8,25 @@ import {
     ServerData,
     IServerController
 } from "../types/server.interface";
+import { getSocketService } from "../sockets/index.socket";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
     private readonly MIN_SERVER_NAME_LENGTH = 3;
     private readonly MAX_SERVER_NAME_LENGTH = 50;
     private readonly MIN_ENCRYPTION_KEY_LENGTH = 8;
-    private readonly MIN_LIFESPAN = 1000 * 60 * 60; // 1 minute
-    private readonly MAX_LIFESPAN = 1000 * 60 * 60 * 24; // 1 day
+    private readonly MIN_LIFESPAN = 1000 * 60 * 60;
+    private readonly MAX_LIFESPAN = 1000 * 60 * 60 * 24;
+
+    // Character sets for encryption key validation
+    private readonly VALID_CHARS = {
+        uppercase: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        lowercase: 'abcdefghijklmnopqrstuvwxyz',
+        numbers: '0123456789',
+        specialChars: '!@#$%^&*()_+-=[]{}|;:,.<>?',
+        hexChars: 'ABCDEF0123456789',
+        base64Chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+    };
 
     private constructor() { }
 
@@ -62,17 +73,36 @@ class ServerController implements IServerController {
         if (encryptionKey.length < this.MIN_ENCRYPTION_KEY_LENGTH) {
             throw new AppError(400, `Encryption key must be at least ${this.MIN_ENCRYPTION_KEY_LENGTH} characters long`);
         }
-        if (!/^[a-zA-Z0-9!@#$%^&*()]+$/.test(encryptionKey)) {
-            throw new AppError(400, "Encryption key can only contain letters, numbers, and special characters");
+
+        const validChars = new Set([
+            ...this.VALID_CHARS.uppercase,
+            ...this.VALID_CHARS.lowercase,
+            ...this.VALID_CHARS.numbers,
+            ...this.VALID_CHARS.specialChars
+        ]);
+
+        const invalidChars = [...encryptionKey].filter(char => !validChars.has(char));
+        if (invalidChars.length > 0) {
+            throw new AppError(400, `Invalid characters in encryption key: ${invalidChars.join(' ')}`);
+        }
+
+        // Ensure at least one character from each required set
+        const hasUppercase = [...this.VALID_CHARS.uppercase].some(char => encryptionKey.includes(char));
+        const hasLowercase = [...this.VALID_CHARS.lowercase].some(char => encryptionKey.includes(char));
+        const hasNumber = [...this.VALID_CHARS.numbers].some(char => encryptionKey.includes(char));
+        const hasSpecial = [...this.VALID_CHARS.specialChars].some(char => encryptionKey.includes(char));
+
+        if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+            throw new AppError(400, "Encryption key must contain at least one uppercase letter, one lowercase letter, one number, and one special character");
         }
     }
 
     private validateLifeSpan(lifeSpan: number): void {
         if (lifeSpan < this.MIN_LIFESPAN) {
-            throw new AppError(400, "Lifespan must be at least 1 minute");
+            throw new AppError(400, "Lifespan must be at least 1 hour");
         }
         if (lifeSpan > this.MAX_LIFESPAN) {
-            throw new AppError(400, "Lifespan cannot exceed 1 week");
+            throw new AppError(400, "Lifespan cannot exceed 1 day");
         }
     }
 
@@ -101,9 +131,19 @@ class ServerController implements IServerController {
             const server = new Server(serverData);
             await server.save();
 
+            const formattedResponse = this.formatResponse(serverData);
+
+            // Get socket service and emit server creation event
+            const socketService = getSocketService();
+            socketService.emitToServer(serverData.serverId, {
+                type: 'status',
+                content: 'Server created successfully',
+                timestamp: Date.now()
+            });
+
             response.status(201).json({
                 message: "Server created successfully",
-                data: this.formatResponse(serverData)
+                data: formattedResponse
             });
         } catch (error) {
             next(error);
