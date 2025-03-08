@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { Server } from "../models/server.model";
-import { generateId } from "../utils/server.util";
+import { generateId } from "../utils/index.util";
 import AppError from "../types/error.class";
 import {
     CreateServerRequest,
@@ -9,6 +9,11 @@ import {
     IServerController
 } from "../types/server.interface";
 import { getSocketService } from "../sockets/index.socket";
+import { addUserToServer, getActiveUsers, clearServerUsers } from "./users.controller";
+import { generateUsername } from "../utils/user.util";
+import { Message } from "../models/messages.model";
+import Invitation from "../models/invitation.model";
+import { generateToken } from "../middleware/auth";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
@@ -27,8 +32,6 @@ class ServerController implements IServerController {
         hexChars: 'ABCDEF0123456789',
         base64Chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
     };
-
-    private constructor() { }
 
     public static getInstance(): ServerController {
         if (!ServerController.instance) {
@@ -118,16 +121,29 @@ class ServerController implements IServerController {
         try {
             this.validateRequest(request.body);
 
+            const createUserIdentity = {
+                userId: `user-${generateId()}`,
+                username: generateUsername(),
+            }
+
             const serverData = this.generateServerData(request.body);
-            const server = new Server(serverData);
+            const server = new Server({
+                ...serverData,
+                owner: createUserIdentity.userId,
+                globalInvitationId: `global-${generateId()}`
+            });
+
             await server.save();
 
             const formattedResponse = this.formatResponse(serverData);
 
-            console.log({
-                serverData,
-                formattedResponse
-            })
+            addUserToServer(serverData.serverId, createUserIdentity);
+
+            // Generate JWT token for the new user
+            const token = generateToken({
+                userId: createUserIdentity.userId,
+                serverId: serverData.serverId
+            });
 
             // Get socket service and emit server creation event
             const socketService = getSocketService();
@@ -139,7 +155,54 @@ class ServerController implements IServerController {
 
             response.status(201).json({
                 message: "Server created successfully",
-                data: formattedResponse
+                data: {
+                    ...formattedResponse,
+                    global_invitation_id: server.globalInvitationId,
+                    owner: server.owner
+                },
+                user: createUserIdentity,
+                token
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    public async getServer(request: Request, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { serverId } = request.params;
+
+            if (!serverId) {
+                throw new AppError(400, "Server ID is required");
+            }
+
+            const server = await Server.findOne({ serverId });
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            // Check if server has expired
+            if (server.expiresAt < new Date()) {
+                await Server.deleteOne({ serverId });
+                await Message.deleteMany({ serverId });
+                await Invitation.deleteMany({ serverId });
+                clearServerUsers(serverId);
+                throw new AppError(410, "Server has expired and been deleted");
+            }
+
+            // Get active users for this server
+            const activeUsers = getActiveUsers(serverId);
+
+            response.status(200).json({
+                message: "Server found",
+                data: {
+                    server_name: server.serverName,
+                    server_id: server.serverId,
+                    expiration: server.expiresAt,
+                    global_invitation_id: server.globalInvitationId,
+                    owner: server.owner,
+                    active_users: activeUsers
+                }
             });
         } catch (error) {
             next(error);
@@ -153,3 +216,6 @@ export const serverController = ServerController.getInstance();
 // Export controller method for route handler
 export const CreateServer = (req: Request, res: Response, next: NextFunction): Promise<void> =>
     serverController.createServer(req, res, next);
+
+export const GetServer = (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    serverController.getServer(req, res, next);
