@@ -22,7 +22,7 @@ class UserController {
         if (!this.activeUsers.has(serverId)) {
             this.activeUsers.set(serverId, new Set());
         }
-        
+
         const serverUsers = this.activeUsers.get(serverId)!;
         // Remove existing user with same ID if exists
         for (const existingUser of serverUsers) {
@@ -31,7 +31,7 @@ class UserController {
                 break;
             }
         }
-        
+
         serverUsers.add(user);
         console.log(`User ${user.username} added to Server ${serverId}`);
     }
@@ -65,6 +65,13 @@ class UserController {
 
     public isUserInServer(serverId: string, userId: string): boolean {
         const serverUsers = this.activeUsers.get(serverId);
+        console.log({
+            method: 'isUserInServer',
+            serverId,
+            userId,
+            serverUsers: serverUsers ? Array.from(serverUsers) : null,
+            hasServer: !!serverUsers
+        });
         if (!serverUsers) return false;
         return Array.from(serverUsers).some(user => user.userId === userId);
     }
@@ -73,17 +80,17 @@ class UserController {
 // Export singleton instance methods
 const userController = UserController.getInstance();
 
-export const addUserToServer = (serverId: string, user: ServerUser): void => 
+export const addUserToServer = (serverId: string, user: ServerUser): void =>
     userController.addUserToServer(serverId, user);
 
-export const removeUserFromServer = (serverId: string, userId: string): void => 
+export const removeUserFromServer = (serverId: string, userId: string): void =>
     userController.removeUserFromServer(serverId, userId);
 
-export const getActiveUsers = (serverId: string): ServerUser[] => 
+export const getActiveUsers = (serverId: string): ServerUser[] =>
     userController.getActiveUsers(serverId);
 
-export const clearServerUsers = (serverId: string): void => 
+export const clearServerUsers = (serverId: string): void =>
     userController.clearServerUsers(serverId);
 
-export const isUserInServer = (serverId: string, userId: string): boolean => 
+export const isUserInServer = (serverId: string, userId: string): boolean =>
     userController.isUserInServer(serverId, userId);

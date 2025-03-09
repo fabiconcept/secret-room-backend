@@ -4,6 +4,7 @@ export interface CreateServerRequest {
     serverName: string;
     encryptionKey: string;
     lifeSpan: number;
+    fingerprint: string;
 }
 
 export interface ServerResponse {

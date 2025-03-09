@@ -17,9 +17,8 @@ export interface AuthRequest extends Request {
 class AuthMiddleware {
     private static instance: AuthMiddleware;
     private readonly API_KEY_HEADER = "X-API-Key";
-    private readonly TOKEN_PREFIX = "Bearer";
 
-    private constructor() {}
+    private constructor() { }
 
     public static getInstance(): AuthMiddleware {
         if (!AuthMiddleware.instance) {
@@ -40,15 +39,9 @@ class AuthMiddleware {
         return apiKey;
     }
 
-    private extractToken(authHeader: string | undefined): string {
-        if (!authHeader) {
+    private extractToken(token: string | undefined): string {
+        if (!token) {
             throw new AppError(401, "Access denied. No token provided.");
-        }
-
-        const [prefix, token] = authHeader.split(" ");
-
-        if (prefix !== this.TOKEN_PREFIX || !token) {
-            throw new AppError(401, "Invalid authorization header format. Use 'Bearer <token>'.");
         }
 
         return token;
@@ -98,18 +91,23 @@ class AuthMiddleware {
         try {
             // First validate API key
             const apiKey = this.validateApiKey(req.header(this.API_KEY_HEADER));
+
             req.apiKey = apiKey;
 
             // Then validate JWT token
-            const token = this.extractToken(req.header("Authorization"));
+            const rawToken = req.header("Authorization");
+            const token = this.extractToken(rawToken);
             const decoded = this.verifyToken(token);
-            
+
+
             // Validate server access
             await this.validateServerAccess(decoded);
-            
+
             req.user = decoded;
+
             next();
         } catch (error) {
+
             if (error instanceof AppError) {
                 res.status(error.statusCode).json({ message: error.message });
             } else {
@@ -135,5 +133,5 @@ export const authenticateUser = authMiddleware.authenticate;
 export const authenticateUserWithJWT = authMiddleware.authenticateWithJWT;
 
 // Export token generator
-export const generateToken = (payload: JWTPayload): string => 
+export const generateToken = (payload: JWTPayload): string =>
     authMiddleware.generateToken(payload);

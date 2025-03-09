@@ -9,11 +9,13 @@ import {
     IServerController
 } from "../types/server.interface";
 import { getSocketService } from "../sockets/index.socket";
-import { addUserToServer, getActiveUsers, clearServerUsers } from "./users.controller";
+import { addUserToServer, getActiveUsers, clearServerUsers, isUserInServer } from "./users.controller";
 import { generateUsername } from "../utils/user.util";
 import { Message } from "../models/messages.model";
 import Invitation from "../models/invitation.model";
 import { generateToken } from "../middleware/auth";
+import { AuthRequest } from "../middleware/auth";
+import { ServerAction } from "../types/server-socket.interface";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
@@ -41,16 +43,17 @@ class ServerController implements IServerController {
     }
 
     public validateRequest(body: any): body is CreateServerRequest {
-        const { serverName, encryptionKey, lifeSpan } = body;
+        const { serverName, encryptionKey, lifeSpan, fingerprint } = body;
 
-        if (!serverName || !encryptionKey || !lifeSpan) {
+        if (!serverName || !encryptionKey || !lifeSpan || !fingerprint) {
             throw new AppError(400, "All fields are required");
         }
 
         if (typeof serverName !== 'string' ||
             typeof encryptionKey !== 'string' ||
-            typeof lifeSpan !== 'number') {
-            throw new AppError(400, "Invalid field types. Expected: serverName (string), encryptionKey (string), lifeSpan (number)");
+            typeof lifeSpan !== 'number' ||
+            typeof fingerprint !== 'string') {
+            throw new AppError(400, "Invalid field types. Expected: serverName (string), encryptionKey (string), lifeSpan (number), fingerprint (string)");
         }
 
         this.validateServerName(serverName);
@@ -122,7 +125,7 @@ class ServerController implements IServerController {
             this.validateRequest(request.body);
 
             const createUserIdentity = {
-                userId: `user-${generateId()}`,
+                userId: request.body.fingerprint,
                 username: generateUsername(),
             }
 
@@ -137,7 +140,7 @@ class ServerController implements IServerController {
 
             const formattedResponse = this.formatResponse(serverData);
 
-            addUserToServer(serverData.serverId, createUserIdentity);
+            addUserToServer(server.serverId, createUserIdentity);
 
             // Generate JWT token for the new user
             const token = generateToken({
@@ -168,15 +171,21 @@ class ServerController implements IServerController {
         }
     }
 
-    public async getServer(request: Request, response: Response, next: NextFunction): Promise<void> {
+    public async getServer(request: AuthRequest, response: Response, next: NextFunction): Promise<void> {
         try {
             const { serverId } = request.params;
+            const userId = request.user?.userId;
 
             if (!serverId) {
                 throw new AppError(400, "Server ID is required");
             }
 
+            if (!userId) {
+                throw new AppError(400, "User ID is required");
+            }
+
             const server = await Server.findOne({ serverId });
+
             if (!server) {
                 throw new AppError(404, "Server not found");
             }
@@ -190,6 +199,31 @@ class ServerController implements IServerController {
                 throw new AppError(410, "Server has expired and been deleted");
             }
 
+            // Check if user is in server
+            const isActive = isUserInServer(serverId, userId as string);
+            const username = generateUsername();
+
+            if (!isActive) {
+                // If user is not active but is the owner, add them back
+                if (server.owner === userId) {
+                    addUserToServer(serverId, {
+                        userId: userId as string,
+                        username
+                    });
+                } else {
+                    throw new AppError(403, "You are not a member of this server");
+                }
+            }
+
+            // Connect to socket
+            const socketService = getSocketService();
+            if (socketService) {
+                console.log('[getServer] Emitting join_server event for user:', { userId, serverId });
+                socketService.emitServerActions(serverId, ServerAction.JOIN, username);
+            } else {
+                console.warn('[getServer] Socket service not available');
+            }
+
             response.status(200).json({
                 message: "Server found",
                 data: {
@@ -198,8 +232,110 @@ class ServerController implements IServerController {
                     expiration: server.expiresAt,
                     global_invitation_id: server.globalInvitationId,
                     owner: server.owner,
+                    username
                 }
             });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    public async getServerActiveUsers(request: AuthRequest, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { serverId } = request.params;
+            const userId = request.user?.userId;
+
+            if (!serverId) {
+                throw new AppError(400, "Server ID is required");
+            }
+
+            if (!userId) {
+                throw new AppError(400, "User Fingerprint is required");
+            }
+
+            const isServerUser = isUserInServer(serverId, userId);
+            if (!isServerUser) {
+                throw new AppError(403, "You are not a member of this server");
+            }
+
+            const server = await Server.findOne({ serverId });
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            const activeUsers = getActiveUsers(server.serverId);
+
+            response.status(200).json({
+                message: "Active users retrieved successfully",
+                data: activeUsers
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    public async globalInvitation(request: Request, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { globalInvitationId } = request.params;
+            const { fingerprint } = request.body;
+
+            if (!globalInvitationId) {
+                throw new AppError(400, "Global invitation ID is required");
+            }
+
+            if (!fingerprint) {
+                throw new AppError(400, "A fingerprint ID is required");
+            }
+
+            // Find server by global invitation ID
+            const server = await Server.findOne({ globalInvitationId });
+
+
+            if (!server) {
+                throw new AppError(404, "Invalid invitation link");
+            }
+
+            // Check if server has expired
+            if (server.expiresAt < new Date()) {
+                throw new AppError(410, "This server has expired");
+            }
+
+            // Check if user already exists in server
+            const userIdentityExist = isUserInServer(server.serverId, fingerprint) || false;
+
+            const userIdentity = {
+                userId: fingerprint,
+                username: generateUsername(),
+            };
+
+            // If user doesn't exist, create new identity
+            if (userIdentityExist) {
+                throw new AppError(409, `You are already in this server_${server.serverId}`);
+            }
+
+            addUserToServer(server.serverId, userIdentity);
+
+            const socketService = getSocketService();
+            socketService.emitServerActions(server.serverId, ServerAction.JOIN, userIdentity.username);
+
+            // Generate JWT token for the user
+            const token = generateToken({
+                userId: userIdentity.userId,
+                serverId: server.serverId
+            });
+
+            // Return server details needed for joining
+            response.status(200).json({
+                success: true,
+                data: {
+                    serverId: server.serverId,
+                    serverName: server.serverName,
+                    expiresAt: server.expiresAt
+                },
+                user: userIdentity,
+                token
+            });
+
         } catch (error) {
             next(error);
         }
@@ -215,3 +351,9 @@ export const CreateServer = (req: Request, res: Response, next: NextFunction): P
 
 export const GetServer = (req: Request, res: Response, next: NextFunction): Promise<void> =>
     serverController.getServer(req, res, next);
+
+export const GetServerActiveUsers = (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    serverController.getServerActiveUsers(req, res, next);
+
+export const GlobalInvitation = (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    serverController.globalInvitation(req, res, next);

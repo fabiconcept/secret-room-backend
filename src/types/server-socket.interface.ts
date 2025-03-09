@@ -8,3 +8,8 @@ export interface ServerMessage {
     content: string;
     timestamp: number;
 }
+
+export enum ServerAction {
+    JOIN = 'join_server',
+    LEAVE = 'leave_server'
+}
