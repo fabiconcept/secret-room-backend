@@ -140,7 +140,11 @@ class ServerController implements IServerController {
 
             const formattedResponse = this.formatResponse(serverData);
 
-            addUserToServer(server.serverId, createUserIdentity);
+            addUserToServer(server.serverId, {
+                ...createUserIdentity,
+                isOnline: true,
+                lastSeen: new Date()
+            });
 
             // Generate JWT token for the new user
             const token = generateToken({
@@ -208,7 +212,9 @@ class ServerController implements IServerController {
                 if (server.owner === userId) {
                     addUserToServer(serverId, {
                         userId: userId as string,
-                        username
+                        username,
+                        isOnline: true,
+                        lastSeen: new Date()
                     });
                 } else {
                     throw new AppError(403, "You are not a member of this server");
@@ -263,7 +269,7 @@ class ServerController implements IServerController {
                 throw new AppError(404, "Server not found");
             }
 
-            const activeUsers = getActiveUsers(server.serverId);
+            const activeUsers = await getActiveUsers(server.serverId);
 
             response.status(200).json({
                 message: "Active users retrieved successfully",
@@ -301,7 +307,7 @@ class ServerController implements IServerController {
             }
 
             // Check if user already exists in server
-            const userIdentityExist = isUserInServer(server.serverId, fingerprint) || false;
+            const userIdentityExist = await isUserInServer(server.serverId, fingerprint) || false;
 
             const userIdentity = {
                 userId: fingerprint,
@@ -313,7 +319,11 @@ class ServerController implements IServerController {
                 throw new AppError(409, `You are already in this server_${server.serverId}`);
             }
 
-            addUserToServer(server.serverId, userIdentity);
+            addUserToServer(server.serverId, {
+                ...userIdentity,
+                isOnline: true,
+                lastSeen: new Date()
+            });
 
             const socketService = getSocketService();
             socketService.emitServerActions(server.serverId, ServerAction.JOIN, userIdentity.username);

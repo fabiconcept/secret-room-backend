@@ -1,15 +1,17 @@
+import { Server } from '../models/server.model';
+import { User } from '../models/user.model';
+
 interface ServerUser {
     userId: string;
     username: string;
+    isOnline: boolean;
+    lastSeen: Date;
 }
 
 class UserController {
     private static instance: UserController;
-    private activeUsers: Map<string, Set<ServerUser>>;
 
-    private constructor() {
-        this.activeUsers = new Map();
-    }
+    private constructor() {}
 
     public static getInstance(): UserController {
         if (!UserController.instance) {
@@ -18,79 +20,127 @@ class UserController {
         return UserController.instance;
     }
 
-    public addUserToServer(serverId: string, user: ServerUser): void {
-        if (!this.activeUsers.has(serverId)) {
-            this.activeUsers.set(serverId, new Set());
+    public async addUserToServer(serverId: string, user: ServerUser): Promise<void> {
+        const server = await Server.findOne({ serverId });
+        if (!server) {
+            throw new Error(`Server ${serverId} not found`);
         }
 
-        const serverUsers = this.activeUsers.get(serverId)!;
-        // Remove existing user with same ID if exists
-        for (const existingUser of serverUsers) {
-            if (existingUser.userId === user.userId) {
-                serverUsers.delete(existingUser);
-                break;
-            }
+        let dbUser = await User.findOne({ userId: user.userId });
+        if (!dbUser) {
+            dbUser = await User.create({
+                userId: user.userId,
+                username: user.username,
+                isOnline: true,
+                currentServer: serverId
+            });
+        } else {
+            await User.updateOne(
+                { userId: user.userId },
+                { 
+                    isOnline: true,
+                    currentServer: serverId,
+                    lastSeen: new Date()
+                }
+            );
         }
 
-        serverUsers.add(user);
+        if (!server.users.includes(dbUser.userId)) {
+            server.users.push(dbUser.userId);
+            await server.save();
+        }
+        
         console.log(`User ${user.username} added to Server ${serverId}`);
     }
 
-    public removeUserFromServer(serverId: string, userId: string): void {
-        const serverUsers = this.activeUsers.get(serverId);
-        if (!serverUsers) return;
+    public async removeUserFromServer(serverId: string, userId: string): Promise<void> {
+        const server = await Server.findOne({ serverId });
+        if (!server) return;
 
-        for (const user of serverUsers) {
-            if (user.userId === userId) {
-                serverUsers.delete(user);
-                console.log(`User ${user.username} removed from Server ${serverId}`);
-                break;
+        server.users = server.users.filter(id => id !== userId);
+        await server.save();
+
+        // Update user status
+        await User.updateOne(
+            { userId },
+            { 
+                isOnline: false,
+                currentServer: null,
+                lastSeen: new Date()
             }
-        }
-
-        if (serverUsers.size === 0) {
-            this.activeUsers.delete(serverId);
-            console.log(`Server ${serverId} removed due to no active users`);
-        }
+        );
+        
+        console.log(`User ${userId} removed from Server ${serverId}`);
     }
 
-    public getActiveUsers(serverId: string): ServerUser[] {
-        return Array.from(this.activeUsers.get(serverId) || []);
+    public async getActiveUsers(serverId: string): Promise<ServerUser[]> {
+        const server = await Server.findOne({ serverId });
+        if (!server) return [];
+        
+        const users = await User.find({ userId: { $in: server.users } });
+        return users.map(user => ({
+            userId: user.userId,
+            username: user.username,
+            isOnline: user.isOnline,
+            lastSeen: user.lastSeen
+        }));
     }
 
-    public clearServerUsers(serverId: string): void {
-        this.activeUsers.delete(serverId);
+    public async clearServerUsers(serverId: string): Promise<void> {
+        const server = await Server.findOne({ serverId });
+        if (!server) return;
+
+        // Update all users in this server to offline
+        await User.updateMany(
+            { userId: { $in: server.users } },
+            { 
+                isOnline: false,
+                currentServer: null,
+                lastSeen: new Date()
+            }
+        );
+
+        server.users = [];
+        await server.save();
         console.log(`Server ${serverId} users cleared`);
     }
 
-    public isUserInServer(serverId: string, userId: string): boolean {
-        const serverUsers = this.activeUsers.get(serverId);
-        console.log({
-            method: 'isUserInServer',
-            serverId,
-            userId,
-            serverUsers: serverUsers ? Array.from(serverUsers) : null,
-            hasServer: !!serverUsers
-        });
-        if (!serverUsers) return false;
-        return Array.from(serverUsers).some(user => user.userId === userId);
+    public async isUserInServer(serverId: string, userId: string): Promise<boolean> {
+        const server = await Server.findOne({ serverId });
+        if (!server) return false;
+        
+        return server.users.includes(userId);
+    }
+
+    public async setUserOnlineStatus(userId: string, isOnline: boolean, serverId?: string): Promise<void> {
+        await User.updateOne(
+            { userId },
+            { 
+                isOnline,
+                currentServer: isOnline ? serverId : null,
+                lastSeen: new Date()
+            }
+        );
     }
 }
 
 // Export singleton instance methods
 const userController = UserController.getInstance();
 
-export const addUserToServer = (serverId: string, user: ServerUser): void =>
+export const addUserToServer = (serverId: string, user: ServerUser): Promise<void> =>
     userController.addUserToServer(serverId, user);
 
-export const removeUserFromServer = (serverId: string, userId: string): void =>
+export const removeUserFromServer = (serverId: string, userId: string): Promise<void> =>
     userController.removeUserFromServer(serverId, userId);
 
-export const getActiveUsers = (serverId: string): ServerUser[] =>
+export const getActiveUsers = (serverId: string): Promise<ServerUser[]> =>
     userController.getActiveUsers(serverId);
 
-export const clearServerUsers = (serverId: string): void =>
+export const clearServerUsers = (serverId: string): Promise<void> =>
     userController.clearServerUsers(serverId);
 
-export const isUserInServer = (serverId: string, userId: string): boolean =>
+export const isUserInServer = (serverId: string, userId: string): Promise<boolean> =>
     userController.isUserInServer(serverId, userId);
+
+export const setUserOnlineStatus = (userId: string, isOnline: boolean, serverId?: string): Promise<void> =>
+    userController.setUserOnlineStatus(userId, isOnline, serverId);

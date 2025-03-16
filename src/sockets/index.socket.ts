@@ -1,14 +1,19 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import { Server } from '../models/server.model';
 import { io } from '../../server';
-import { ServerJoinPayload, ServerMessage, ServerAction } from '../types/server-socket.interface';
+import { ServerJoinPayload, ServerMessage, ServerAction, UserStatusUpdate } from '../types/server-socket.interface';
+import { getActiveUsers, setUserOnlineStatus } from '../controllers/users.controller';
 
 class ServerSocketService {
     private static instance: ServerSocketService;
     private io: SocketServer;
+    private userSocketMap: Map<string, Set<string>>; // userId -> Set of socket IDs
+    private serverUsersMap: Map<string, Set<string>>; // serverId -> Set of userIds
 
     private constructor() {
         this.io = io;
+        this.userSocketMap = new Map();
+        this.serverUsersMap = new Map();
         this.setupSocketHandlers();
     }
 
@@ -31,20 +36,82 @@ class ServerSocketService {
         }
     }
 
+    private async broadcastActiveUsers(serverId: string): Promise<void> {
+        try {
+            const activeUsers = await getActiveUsers(serverId);
+            this.io.to(serverId).emit('active_users_updated', activeUsers);
+        } catch (error) {
+            console.error('Error broadcasting active users:', error);
+        }
+    }
+
+    private async broadcastUserStatus(update: UserStatusUpdate): Promise<void> {
+        try {
+            // First update the user's status in the database
+            await setUserOnlineStatus(update.userId, update.isOnline, update.serverId);
+            
+            // Then broadcast the updated user list to all clients in the server
+            await this.broadcastActiveUsers(update.serverId);
+            
+            // Also emit a specific status update event for real-time UI updates
+            this.io.to(update.serverId).emit('user_status_changed', update);
+        } catch (error) {
+            console.error('Error broadcasting user status:', error);
+        }
+    }
+
+    private trackUserSocket(userId: string, socketId: string, serverId: string): void {
+        // Track socket for user
+        if (!this.userSocketMap.has(userId)) {
+            this.userSocketMap.set(userId, new Set());
+        }
+        this.userSocketMap.get(userId)!.add(socketId);
+
+        // Track user for server
+        if (!this.serverUsersMap.has(serverId)) {
+            this.serverUsersMap.set(serverId, new Set());
+        }
+        this.serverUsersMap.get(serverId)!.add(userId);
+    }
+
+    private async untrackUserSocket(userId: string, socketId: string): Promise<void> {
+        const userSockets = this.userSocketMap.get(userId);
+        if (userSockets) {
+            userSockets.delete(socketId);
+            if (userSockets.size === 0) {
+                this.userSocketMap.delete(userId);
+                
+                // Find which server this user was in
+                for (const [serverId, users] of this.serverUsersMap) {
+                    if (users.has(userId)) {
+                        users.delete(userId);
+                        // Broadcast status update
+                        await this.broadcastUserStatus({
+                            userId,
+                            isOnline: false,
+                            serverId
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     private setupSocketHandlers(): void {
         this.io.on('connection', (socket: Socket) => {
             console.log('Client connected:', socket.id);
+            let currentServerId: string | null = null;
+            let currentUserId: string | null = null;
 
             socket.on('join_server', async (payload: ServerJoinPayload) => {
-                console.log('[join_server] Received join request:', { serverId: payload.serverId });
                 try {
-                    const { serverId, apiKey } = payload;
-                    console.log('[join_server] Validating server access...');
+                    const { serverId, userId } = payload;
+                    currentServerId = serverId;
+                    currentUserId = userId;
+                    
                     const hasAccess = await this.validateServerAccess(serverId);
-                    console.log('[join_server] Access validation result:', { hasAccess });
-
                     if (!hasAccess) {
-                        console.log('[join_server] Access denied for server:', serverId);
                         socket.emit('server_error', {
                             type: 'error',
                             content: 'Invalid server credentials or server has expired',
@@ -54,37 +121,33 @@ class ServerSocketService {
                     }
 
                     // Leave all other rooms first
-                    console.log('[join_server] Current rooms:', Array.from(socket.rooms));
                     socket.rooms.forEach(room => {
                         if (room !== socket.id) {
-                            console.log('[join_server] Leaving room:', room);
                             socket.leave(room);
                         }
                     });
 
-                    // Join the new server room
-                    console.log('[join_server] Joining new server room:', serverId);
-                    socket.join(serverId);
+                    // Track user and join server room
+                    if (userId) {
+                        this.trackUserSocket(userId, socket.id, serverId);
+                        socket.join(serverId);
+                        
+                        // Broadcast user's online status
+                        await this.broadcastUserStatus({
+                            userId,
+                            isOnline: true,
+                            serverId
+                        });
+                    }
 
-                    // Notify room members
-                    console.log('[join_server] Broadcasting new member notification');
-                    this.io.to(serverId).emit('server_message', {
-                        type: 'status',
-                        content: 'New member joined the server',
-                        timestamp: Date.now()
-                    });
-
-                    // Send confirmation to the joining client
-                    console.log('[join_server] Sending join confirmation to client');
                     socket.emit('server_joined', {
                         type: 'status',
                         content: 'Successfully joined the server',
                         timestamp: Date.now()
                     });
-                    console.log('[join_server] Join process completed successfully');
 
                 } catch (error) {
-                    console.error('[join_server] Error during join process:', error);
+                    console.error('Error during join process:', error);
                     socket.emit('server_error', {
                         type: 'error',
                         content: 'Failed to join server',
@@ -93,8 +156,11 @@ class ServerSocketService {
                 }
             });
 
-            socket.on('leave_server', (serverId: string) => {
+            socket.on('leave_server', async (serverId: string) => {
                 socket.leave(serverId);
+                if (currentUserId) {
+                    await this.untrackUserSocket(currentUserId, socket.id);
+                }
                 socket.emit('server_left', {
                     type: 'status',
                     content: 'Left the server',
@@ -102,8 +168,10 @@ class ServerSocketService {
                 });
             });
 
-            socket.on('disconnect', () => {
-                console.log('Client disconnected:', socket.id);
+            socket.on('disconnect', async () => {
+                if (currentUserId) {
+                    await this.untrackUserSocket(currentUserId, socket.id);
+                }
             });
         });
     }
@@ -113,7 +181,6 @@ class ServerSocketService {
     }
 
     public emitServerActions(serverId: string, action: ServerAction, username?: string): void {
-        // Broadcast to all clients in the room except sender
         this.io.to(serverId).emit('server_action', {
             type: 'status',
             content: `${username || 'A user'} ${action === ServerAction.JOIN ? 'joined' : 'left'} the server`,
@@ -122,12 +189,10 @@ class ServerSocketService {
     }
 
     public broadcastServerMessage(serverId: string, message: ServerMessage): void {
-        // Broadcast to all clients in the room
         this.io.in(serverId).emit('server_message', message);
     }
 }
 
-// Export singleton instance
 export const getSocketService = (): ServerSocketService => {
     return ServerSocketService.getInstance();
 };

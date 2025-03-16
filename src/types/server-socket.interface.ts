@@ -1,15 +1,21 @@
 export interface ServerJoinPayload {
     serverId: string;
-    apiKey: string;
+    userId: string;
 }
 
 export interface ServerMessage {
-    type: 'message' | 'status' | 'error';
+    type: 'status' | 'error';
     content: string;
     timestamp: number;
 }
 
+export interface UserStatusUpdate {
+    userId: string;
+    isOnline: boolean;
+    serverId: string;
+}
+
 export enum ServerAction {
-    JOIN = 'join_server',
-    LEAVE = 'leave_server'
+    JOIN = 'join',
+    LEAVE = 'leave'
 }
