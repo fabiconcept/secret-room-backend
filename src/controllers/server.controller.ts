@@ -350,6 +350,120 @@ class ServerController implements IServerController {
             next(error);
         }
     }
+
+    public async uniqueInvitation(request: Request, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { inviteCode } = request.params;
+            const { fingerprint } = request.body; // Assuming fingerprint comes from request body
+    
+            if (!inviteCode) {
+                throw new AppError(400, "Invite code is required");
+            }
+    
+            if (!fingerprint) {
+                throw new AppError(400, "Fingerprint is required");
+            }
+    
+            console.log({
+                inviteCode,
+                fingerprint
+            });
+            
+            const invitation = await Invitation.findOne({ inviteCode });
+            
+            if (!invitation) {
+                throw new AppError(404, "Server invitation not found");
+            }
+    
+            if (invitation.used) {
+                throw new AppError(409, "Server invitation already used");
+            }
+            
+            const server = await Server.findOne({ serverId: invitation.serverId });
+    
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+    
+            // Check if user already exists in server
+            const userIdentityExist = await isUserInServer(server.serverId, fingerprint) || false;
+    
+            const userIdentity = {
+                userId: fingerprint,
+                username: generateUsername(),
+            };
+    
+            // If user doesn't exist, create new identity
+            if (userIdentityExist) {
+                throw new AppError(409, `You are already in this server_${server.serverId}`);
+            }
+    
+            addUserToServer(server.serverId, {
+                ...userIdentity,
+                isOnline: true,
+                lastSeen: new Date()
+            });
+    
+            const socketService = getSocketService();
+            socketService.emitServerActions(server.serverId, ServerAction.JOIN, userIdentity.username);
+    
+            // Generate JWT token for the user
+            const token = generateToken({
+                userId: userIdentity.userId,
+                serverId: server.serverId
+            });
+    
+            // Return server details needed for joining
+            response.status(200).json({
+                success: true,
+                data: {
+                    serverId: server.serverId,
+                    serverName: server.serverName,
+                    expiresAt: server.expiresAt
+                },
+                user: userIdentity,
+                token
+            });
+    
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    public async generateUniqueServerInvitationId(request: Request, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { serverId } = request.params;
+
+            if (!serverId) {
+                throw new AppError(400, "Server ID is required");
+            }
+
+            const server = await Server.findOne({ serverId });
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            const uniqueInvitationId =  `invite-${generateId()}`;
+            
+            const invitation = new Invitation({
+                inviteCode: uniqueInvitationId,
+                used: false,
+                serverId,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            });
+
+            await invitation.save();
+
+            response.status(200).json({
+                message: "Server invitation ID generated successfully",
+                data: { 
+                    inviteCode: uniqueInvitationId
+                }
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 // Export singleton instance
@@ -367,3 +481,9 @@ export const GetServerActiveUsers = (req: Request, res: Response, next: NextFunc
 
 export const GlobalInvitation = (req: Request, res: Response, next: NextFunction): Promise<void> =>
     serverController.globalInvitation(req, res, next);
+
+export const UniqueInvitation = (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    serverController.uniqueInvitation(req, res, next);
+
+export const GenerateUniqueServerInvitationId = (req: Request, res: Response, next: NextFunction): Promise<void> =>
+    serverController.generateUniqueServerInvitationId(req, res, next);
