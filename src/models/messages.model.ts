@@ -8,6 +8,7 @@ const messageSchema = new mongoose.Schema({
     receiverId: { type: String, required: true }, // Who received it
     content: { type: String, required: true }, // Encrypted message text
     createdAt: { type: Date, default: Date.now },
+    read: { type: Boolean, default: false }
 });
 
 // Encrypt message before saving
