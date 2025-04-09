@@ -3,6 +3,8 @@ import { Server } from '../models/server.model';
 import { io } from '../../server';
 import { ServerJoinPayload, ServerMessage, ServerAction, UserStatusUpdate } from '../types/server-socket.interface';
 import { getActiveUsers, setUserOnlineStatus } from '../controllers/users.controller';
+import messagesController from '../controllers/messages.controller';
+import { Message } from '../types/message.interface';
 
 class ServerSocketService {
     private static instance: ServerSocketService;
@@ -156,6 +158,10 @@ class ServerSocketService {
                 }
             });
 
+            socket.on('new-message', async (serverId: string, message: Message) => {
+                await messagesController.sendMessage(serverId, message.content, message.senderId, message.receiverId);
+            });
+
             socket.on('leave_server', async (serverId: string) => {
                 socket.leave(serverId);
                 if (currentUserId) {
@@ -180,6 +186,13 @@ class ServerSocketService {
         this.io.to(serverId).emit('server_message', message);
     }
 
+    // broadcast new message
+    public broadcastNewMessage(serverId: string, message: Message): void {
+        console.log('Broadcasting new message to server:', serverId);
+        console.log('Message:', message);
+
+        this.io.in(serverId).emit('new-message', message);
+    }
     public emitServerActions(serverId: string, action: ServerAction, username?: string): void {
         this.io.to(serverId).emit('server_action', {
             type: 'status',

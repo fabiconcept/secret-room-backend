@@ -6,6 +6,8 @@ interface ServerUser {
     username: string;
     isOnline: boolean;
     lastSeen: Date;
+    bgColor: string;
+    textColor: string;
 }
 
 class UserController {
@@ -20,7 +22,7 @@ class UserController {
         return UserController.instance;
     }
 
-    public async addUserToServer(serverId: string, user: ServerUser): Promise<void> {
+    public async addUserToServer(serverId: string, user: Omit<ServerUser, 'bgColor' | 'textColor'>): Promise<void> {
         const server = await Server.findOne({ serverId });
         if (!server) {
             throw new Error(`Server ${serverId} not found`);
@@ -82,7 +84,9 @@ class UserController {
             userId: user.userId,
             username: user.username,
             isOnline: user.isOnline,
-            lastSeen: user.lastSeen
+            lastSeen: user.lastSeen,
+            bgColor: user.bgColor,
+            textColor: user.textColor
         }));
     }
 
@@ -127,7 +131,7 @@ class UserController {
 // Export singleton instance methods
 const userController = UserController.getInstance();
 
-export const addUserToServer = (serverId: string, user: ServerUser): Promise<void> =>
+export const addUserToServer = (serverId: string, user: Omit<ServerUser, 'bgColor' | 'textColor'>): Promise<void> =>
     userController.addUserToServer(serverId, user);
 
 export const removeUserFromServer = (serverId: string, userId: string): Promise<void> =>
