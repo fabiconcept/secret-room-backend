@@ -3,7 +3,9 @@ import AppError from "../types/error.class";
 import { Server } from "../models/server.model";
 import { isUserInServer } from "./users.controller";
 import { getSocketService } from "../sockets/index.socket";
-import { response } from "express";
+import { NextFunction, Request, Response } from "express";
+import { AuthRequest } from "../middleware/auth";
+import { decryptMessage } from "../utils/messages.utli";
 
 class MessagesController {
     private static instance: MessagesController;
@@ -53,6 +55,42 @@ class MessagesController {
 
         const socketService = getSocketService();
         socketService.broadcastNewMessage(serverId, message);
+    }
+
+    public async getMessages(request: AuthRequest, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { serverId } = request.params;
+            const userId = request.user?.userId;
+
+            if (!userId) {
+                throw new AppError(400, "User ID is required");
+            }
+
+            if (!serverId) {
+                throw new AppError(400, "Server ID is required");
+            }
+
+            const server = await Server.findOne({ serverId });
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            const isServerUser = isUserInServer(serverId, userId);
+            if (!isServerUser) {
+                throw new AppError(403, "You are not a member of this server");
+            }
+
+            const messages = await Message.find({ serverId });
+            response.status(200).json({
+                message: "Messages found",
+                data: messages.map(message => ({
+                    ...message.toObject(),
+                    content: decryptMessage(message.content, server.salt)
+                }))
+            });
+        } catch (error) {
+            next(error);
+        }
     }
 }
 
