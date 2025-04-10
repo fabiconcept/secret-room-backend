@@ -354,7 +354,7 @@ class ServerController implements IServerController {
     public async uniqueInvitation(request: Request, response: Response, next: NextFunction): Promise<void> {
         try {
             const { inviteCode } = request.params;
-            const { fingerprint } = request.body; // Assuming fingerprint comes from request body
+            const { fingerprint } = request.body;
     
             if (!inviteCode) {
                 throw new AppError(400, "Invite code is required");

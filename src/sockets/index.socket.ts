@@ -159,6 +159,10 @@ class ServerSocketService {
             });
 
             socket.on('new-message', async (serverId: string, message: Message) => {
+                console.log({
+                    serverId,
+                    message
+                })
                 await messagesController.sendMessage(serverId, message.content, message.senderId, message.receiverId);
             });
 

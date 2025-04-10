@@ -2,8 +2,7 @@ import mongoose from "mongoose";
 import { generateVibrantBgColorWithTextVisibility } from "../utils/index.util";
 
 const userSchema = new mongoose.Schema({
-    userId: { type: String, required: true },
-    uniqueId: { type: String, required: true, unique: true },
+    userId: { type: String, required: true, unique: true  },
     username: { type: String, required: true },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: Date.now },
