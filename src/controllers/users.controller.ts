@@ -1,9 +1,9 @@
 import { Server } from '../models/server.model';
 import { User } from '../models/user.model';
+import { generateUsername } from '../utils/user.util';
 
 interface ServerUser {
     userId: string;
-    username: string;
     isOnline: boolean;
     lastSeen: Date;
     bgColor: string;
@@ -32,7 +32,6 @@ class UserController {
         if (!dbUser) {
             dbUser = await User.create({
                 userId: user.userId,
-                username: user.username,
                 isOnline: true,
                 currentServer: serverId
             });
@@ -47,19 +46,21 @@ class UserController {
             );
         }
 
-        if (!server.users.includes(dbUser.userId)) {
-            server.users.push(dbUser.userId);
+        if (!server.approvedUsers.includes(dbUser.userId)) {
+            server.approvedUsers.push(dbUser.userId);
             await server.save();
         }
+
+        const username = generateUsername(`${dbUser.userId}-${serverId}`);
         
-        console.log(`User ${user.username} added to Server ${serverId}`);
+        console.log(`User ${username} added to Server ${serverId}`);
     }
 
     public async removeUserFromServer(serverId: string, userId: string): Promise<void> {
         const server = await Server.findOne({ serverId });
         if (!server) return;
 
-        server.users = server.users.filter(id => id !== userId);
+        server.approvedUsers = server.approvedUsers.filter(id => id !== userId);
         await server.save();
 
         // Update user status
@@ -79,15 +80,27 @@ class UserController {
         const server = await Server.findOne({ serverId });
         if (!server) return [];
         
-        const users = await User.find({ userId: { $in: server.users } });
-        return users.map(user => ({
-            userId: user.userId,
-            username: user.username,
-            isOnline: user.isOnline,
-            lastSeen: user.lastSeen,
-            bgColor: user.bgColor,
-            textColor: user.textColor
-        }));
+        const users = await User.find({ userId: { $in: server.allUsers } });
+        const approvedUsers = await User.find({ userId: { $in: server.approvedUsers } });
+        return users.map(user => {
+            if(!approvedUsers.find(u => u.userId === user.userId)) return({
+                userId: user.userId,
+                username: generateUsername(`${user.userId}-${serverId}`),
+                isOnline: false,
+                lastSeen: user.lastSeen,
+                bgColor: user.bgColor,
+                textColor: user.textColor
+            });
+
+            return ({
+                userId: user.userId,
+                username: generateUsername(`${user.userId}-${serverId}`),
+                isOnline: user.isOnline,
+                lastSeen: user.lastSeen,
+                bgColor: user.bgColor,
+                textColor: user.textColor
+            })
+        });
     }
 
     public async clearServerUsers(serverId: string): Promise<void> {
@@ -96,7 +109,7 @@ class UserController {
 
         // Update all users in this server to offline
         await User.updateMany(
-            { userId: { $in: server.users } },
+            { userId: { $in: server.approvedUsers } },
             { 
                 isOnline: false,
                 currentServer: null,
@@ -104,7 +117,7 @@ class UserController {
             }
         );
 
-        server.users = [];
+        server.approvedUsers = [];
         await server.save();
         console.log(`Server ${serverId} users cleared`);
     }
@@ -113,7 +126,7 @@ class UserController {
         const server = await Server.findOne({ serverId });
         if (!server) return false;
         
-        return server.users.includes(userId);
+        return server.approvedUsers.includes(userId);
     }
 
     public async setUserOnlineStatus(userId: string, isOnline: boolean, serverId?: string): Promise<void> {

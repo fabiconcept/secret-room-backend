@@ -5,6 +5,7 @@ import { ServerJoinPayload, ServerMessage, ServerAction, UserStatusUpdate } from
 import { getActiveUsers, setUserOnlineStatus } from '../controllers/users.controller';
 import messagesController from '../controllers/messages.controller';
 import { Message } from '../types/message.interface';
+import { LeaveServer } from '../controllers/server.controller';
 
 class ServerSocketService {
     private static instance: ServerSocketService;
@@ -102,7 +103,6 @@ class ServerSocketService {
 
     private setupSocketHandlers(): void {
         this.io.on('connection', (socket: Socket) => {
-            console.log('Client connected:', socket.id);
             let currentServerId: string | null = null;
             let currentUserId: string | null = null;
 
@@ -159,18 +159,26 @@ class ServerSocketService {
             });
 
             socket.on('new-message', async (serverId: string, message: Message) => {
-                console.log({
-                    serverId,
-                    message
-                })
-                await messagesController.sendMessage(serverId, message.content, message.senderId, message.receiverId);
+                await messagesController.sendMessage(serverId, message.content, message.senderId, message.receiverId, message.attachmentUrl);
+            });
+
+            socket.on('mark_message_read', async (messageId: string) => {
+                await messagesController.markMessageRead(messageId);
             });
 
             socket.on('leave_server', async (serverId: string) => {
                 socket.leave(serverId);
-                if (currentUserId) {
-                    await this.untrackUserSocket(currentUserId, socket.id);
+                try {
+                    if (currentUserId) {
+                        await this.untrackUserSocket(currentUserId, socket.id);
+                        await LeaveServer(serverId, currentUserId);
+                    }
+                } catch (error) {
+                    console.error('Error during leave process:', error);
                 }
+                currentServerId = null;
+                currentUserId = null;
+                
                 socket.emit('server_left', {
                     type: 'status',
                     content: 'Left the server',
@@ -191,22 +199,32 @@ class ServerSocketService {
     }
 
     // broadcast new message
-    public broadcastNewMessage(serverId: string, message: Message): void {
-        console.log('Broadcasting new message to server:', serverId);
-        console.log('Message:', message);
-
+    public broadcastNewMessage(serverId: string, message: Omit<Message, 'messageId'>): void {
         this.io.in(serverId).emit('new-message', message);
     }
+
+    // emit server actions
     public emitServerActions(serverId: string, action: ServerAction, username?: string): void {
         this.io.to(serverId).emit('server_action', {
             type: 'status',
             content: `${username || 'A user'} ${action === ServerAction.JOIN ? 'joined' : 'left'} the server`,
+            action,
+            username,
             timestamp: Date.now()
         });
     }
 
     public broadcastServerMessage(serverId: string, message: ServerMessage): void {
         this.io.in(serverId).emit('server_message', message);
+    }
+
+    public broadcastMessageRead(messageId: string, serverId: string): void {
+        console.log('Broadcasting message read:', messageId, serverId);
+        this.io.in(serverId).emit('message_read', messageId);
+    }
+
+    public broadcastServerDeleted(serverId: string) {
+        this.io.in(serverId).emit("server_deleted");
     }
 }
 

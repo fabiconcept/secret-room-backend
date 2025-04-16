@@ -16,6 +16,7 @@ import Invitation from "../models/invitation.model";
 import { generateToken } from "../middleware/auth";
 import { AuthRequest } from "../middleware/auth";
 import { ServerAction } from "../types/server-socket.interface";
+import { User } from "../models/user.model";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
@@ -126,7 +127,6 @@ class ServerController implements IServerController {
 
             const createUserIdentity = {
                 userId: request.body.fingerprint,
-                username: generateUsername(),
             }
 
             const serverData = this.generateServerData(request.body);
@@ -204,15 +204,14 @@ class ServerController implements IServerController {
             }
 
             // Check if user is in server
-            const isActive = isUserInServer(serverId, userId as string);
-            const username = generateUsername();
+            const isActive = await isUserInServer(serverId, userId as string);
+            const username = generateUsername(`${userId}-${serverId}`);
 
             if (!isActive) {
                 // If user is not active but is the owner, add them back
                 if (server.owner === userId) {
                     addUserToServer(serverId, {
                         userId: userId as string,
-                        username,
                         isOnline: true,
                         lastSeen: new Date()
                     });
@@ -223,12 +222,8 @@ class ServerController implements IServerController {
 
             // Connect to socket
             const socketService = getSocketService();
-            if (socketService) {
-                console.log('[getServer] Emitting join_server event for user:', { userId, serverId });
-                socketService.emitServerActions(serverId, ServerAction.JOIN, username);
-            } else {
-                console.warn('[getServer] Socket service not available');
-            }
+            
+            socketService.emitServerActions(serverId, ServerAction.JOIN, username);
 
             response.status(200).json({
                 message: "Server found",
@@ -259,7 +254,7 @@ class ServerController implements IServerController {
                 throw new AppError(400, "User Fingerprint is required");
             }
 
-            const isServerUser = isUserInServer(serverId, userId);
+            const isServerUser = await isUserInServer(serverId, userId);
             if (!isServerUser) {
                 throw new AppError(403, "You are not a member of this server");
             }
@@ -311,7 +306,6 @@ class ServerController implements IServerController {
 
             const userIdentity = {
                 userId: fingerprint,
-                username: generateUsername(),
             };
 
             // If user doesn't exist, create new identity
@@ -326,7 +320,7 @@ class ServerController implements IServerController {
             });
 
             const socketService = getSocketService();
-            socketService.emitServerActions(server.serverId, ServerAction.JOIN, userIdentity.username);
+            socketService.emitServerActions(server.serverId, ServerAction.JOIN, generateUsername(`${userIdentity.userId}-${server.serverId}`));
 
             // Generate JWT token for the user
             const token = generateToken({
@@ -390,7 +384,6 @@ class ServerController implements IServerController {
     
             const userIdentity = {
                 userId: fingerprint,
-                username: generateUsername(),
             };
     
             // If user doesn't exist, create new identity
@@ -405,13 +398,18 @@ class ServerController implements IServerController {
             });
     
             const socketService = getSocketService();
-            socketService.emitServerActions(server.serverId, ServerAction.JOIN, userIdentity.username);
+            const username = generateUsername(`${userIdentity.userId}-${server.serverId}`);
+
+            socketService.emitServerActions(server.serverId, ServerAction.JOIN, username);
     
             // Generate JWT token for the user
             const token = generateToken({
                 userId: userIdentity.userId,
                 serverId: server.serverId
             });
+
+            // Update invitation status
+            await Invitation.updateOne({ inviteCode }, { used: true });
     
             // Return server details needed for joining
             response.status(200).json({
@@ -464,6 +462,93 @@ class ServerController implements IServerController {
             next(error);
         }
     }
+
+    // Leave server
+    public async leaveServer(serverId: string, userId: string): Promise<void> {
+        try {
+            if (!serverId) {
+                throw new AppError(400, "Server ID is required");
+            }
+
+            const server = await Server.findOne({ serverId });
+            const username = generateUsername(`${userId}-${serverId}`);
+           
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            if (!userId) {
+                throw new AppError(400, "User ID is required");
+            }
+
+            const isServerUser = await isUserInServer(serverId, userId);
+            if (!isServerUser) {
+                throw new AppError(403, "You are not a member of this server");
+            }
+
+            // Remove user from server
+            await Server.updateOne({ serverId }, { $pull: { approvedUsers: userId } });
+
+            // Remove server from user
+            await User.updateOne({ userId }, { $pull: { servers: serverId } });
+
+            const socketService = getSocketService();
+            socketService.emitServerActions(server.serverId, ServerAction.LEAVE, username);
+        } catch (error) {
+            console.error('Error during leave process:', error);
+        }
+    }
+
+    public async deleteServer(request: AuthRequest, response: Response, next: NextFunction): Promise<void> {
+        try {
+            const { serverId } = request.params;
+            const userId = request.user?.userId;
+
+            if (!serverId) {
+                throw new AppError(400, "Server ID is required");
+            }
+
+            if (!userId) {
+                throw new AppError(400, "User ID is required");
+            }
+
+            const isServerUser = await isUserInServer(serverId, userId);
+            if (!isServerUser) {
+                throw new AppError(403, "You are not a member of this server");
+            }
+
+            const server = await Server.findOne({ serverId: serverId });
+
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            if (server.owner !== userId) {
+                throw new AppError(403, "You are not the owner of this server");
+            }
+
+            // Remove server from user
+            await User.updateMany({ servers: serverId }, { $pull: { servers: serverId } });
+
+            // Delete server
+            await Server.deleteOne({ serverId });
+
+            // Delete messages
+            await Message.deleteMany({ serverId });
+
+            // Delete invitations
+            await Invitation.deleteMany({ serverId });
+
+            const socketService = getSocketService();
+            socketService.broadcastServerDeleted(serverId);
+
+            response.status(200).json({
+                message: "Server deleted successfully"
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 // Export singleton instance
@@ -487,3 +572,9 @@ export const UniqueInvitation = (req: Request, res: Response, next: NextFunction
 
 export const GenerateUniqueServerInvitationId = (req: Request, res: Response, next: NextFunction): Promise<void> =>
     serverController.generateUniqueServerInvitationId(req, res, next);
+
+export const LeaveServer = (serverId: string, userId: string): Promise<void> =>
+    serverController.leaveServer(serverId, userId);
+
+export const DeleteServer = (req: AuthRequest, res: Response, next: NextFunction): Promise<void> =>
+    serverController.deleteServer(req, res, next);

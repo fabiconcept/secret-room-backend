@@ -3,7 +3,7 @@ import AppError from "../types/error.class";
 import { Server } from "../models/server.model";
 import { isUserInServer } from "./users.controller";
 import { getSocketService } from "../sockets/index.socket";
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { decryptMessage } from "../utils/messages.utli";
 
@@ -19,14 +19,13 @@ class MessagesController {
         return MessagesController.instance;
     }
 
-    public async sendMessage(serverId: string, content: string, senderId: string, receiverId: string): Promise<void> {
-        console.log('Sending message to server:', serverId);
-        console.log('Message content:', content);
-        console.log('Sender ID:', senderId);
-        console.log('Receiver ID:', receiverId);
-        
-        if (!serverId || !content || !senderId || !receiverId) {
+    public async sendMessage(serverId: string, content: string, senderId: string, receiverId: string, attachmentUrl?: string, sent: boolean = true): Promise<void> {
+        if (!serverId || !senderId || !receiverId) {
             throw new AppError(400, 'Missing required fields');
+        }
+
+        if (!content && !attachmentUrl) {
+            throw new AppError(400, 'Message content or attachment is required');
         }
 
         const server = await Server.findOne({ serverId });
@@ -42,19 +41,34 @@ class MessagesController {
             throw new AppError(403, 'Receiver is not a member of this server');
         }
 
-        const message = {
+        const payload = {
             serverId,
             content,
             senderId,
             receiverId,
-            read: false,
+            attachmentUrl: attachmentUrl || null,
+            readBySender: false,
+            readByReceiver: false,
+            sent: sent || false,
             createdAt: new Date()
         };
 
-        await new Message(message).save();
+        const message = await new Message(payload).save();
 
+        const output = {
+            serverId: message.serverId,
+            content: payload.content,
+            senderId: message.senderId,
+            receiverId: message.receiverId,
+            readBySender: message.readBySender,
+            readByReceiver: message.readByReceiver,
+            messageId: message.messageId,
+            createdAt: message.createdAt,
+            sent: message.sent,
+            attachmentUrl: payload.attachmentUrl || undefined
+        }
         const socketService = getSocketService();
-        socketService.broadcastNewMessage(serverId, message);
+        socketService.broadcastNewMessage(serverId, output);
     }
 
     public async getMessages(request: AuthRequest, response: Response, next: NextFunction): Promise<void> {
@@ -79,17 +93,36 @@ class MessagesController {
             if (!isServerUser) {
                 throw new AppError(403, "You are not a member of this server");
             }
-
+            
             const messages = await Message.find({ serverId });
+
             response.status(200).json({
                 message: "Messages found",
                 data: messages.map(message => ({
                     ...message.toObject(),
-                    content: decryptMessage(message.content, server.salt)
+                    content: decryptMessage(message.content, server.salt),
+                    attachmentUrl: message.attachmentUrl ? decryptMessage(message.attachmentUrl, server.salt) : null,
                 }))
             });
         } catch (error) {
             next(error);
+        }
+    }
+
+    public async markMessageRead(messageId: string): Promise<void> {
+        console.log('Marking message read in controller:', messageId)
+        try {
+            const message = await Message.findOne({ messageId });
+            if (!message) {
+                throw new AppError(404, "Message not found");
+            }
+            message.readByReceiver = true;
+            await message.save();
+
+            const socketService = getSocketService();
+            socketService.broadcastMessageRead(messageId, message.serverId);
+        } catch (error) {
+            throw error;
         }
     }
 }

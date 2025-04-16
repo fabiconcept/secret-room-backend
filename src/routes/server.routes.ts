@@ -1,5 +1,5 @@
 import express from "express";
-import { CreateServer, GenerateUniqueServerInvitationId, GetServer, GetServerActiveUsers, GlobalInvitation, UniqueInvitation } from "../controllers/server.controller";
+import { CreateServer, DeleteServer, GenerateUniqueServerInvitationId, GetServer, GetServerActiveUsers, GlobalInvitation, UniqueInvitation } from "../controllers/server.controller";
 import { authenticateUser, authenticateUserWithJWT } from "../middleware/auth";
 import messagesController from "../controllers/messages.controller";
 
@@ -15,4 +15,5 @@ router.get("/:serverId", authenticateUserWithJWT, GetServer);
 router.get("/:serverId/active-users", authenticateUserWithJWT, GetServerActiveUsers);
 router.get("/:serverId/generate-unique-server-invitation-id", authenticateUserWithJWT, GenerateUniqueServerInvitationId);
 router.get("/:serverId/messages", authenticateUserWithJWT, messagesController.getMessages);
+router.delete("/:serverId", authenticateUserWithJWT, DeleteServer);
 export default router;

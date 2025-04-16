@@ -3,6 +3,7 @@ import cors from "cors";
 import errorHandler from "./middleware/errorHandler";
 import { config } from "./config/dotenv.config";
 import * as ServerRoute from "./routes/server.routes";
+import messagesRouter from "./routes/messages.route";
 
 const app = express();
 
@@ -15,6 +16,7 @@ app.use(cors({
 }));
 
 app.use("/api/server", ServerRoute.default);
+app.use("/api/messages", messagesRouter);
 
 app.use(errorHandler);
 

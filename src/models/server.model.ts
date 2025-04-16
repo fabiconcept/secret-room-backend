@@ -8,12 +8,27 @@ const serverSchema = new mongoose.Schema({
     globalInvitationId: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
     createdAt: { type: Date, default: Date.now },
-    users: [{ type: String, ref: 'User' }]  // Array of user IDs referencing User model
+    approvedUsers: [{ type: String, ref: 'User' }],
+    allUsers: [{ type: String, ref: 'User' }]
 });
 
-// Middleware to clean up users when server is deleted
-serverSchema.pre('deleteOne', async function (next) {
-    await mongoose.model('User').deleteMany({ userId: { $in: this.get('users') } });
+// Add this before the model export
+serverSchema.pre('save', function (next) {
+    // Get all approved users
+    const approvedUsers = this.approvedUsers || [];
+
+    // Initialize all users if it doesn't exist
+    if (!this.allUsers) {
+        this.allUsers = [];
+    }
+
+    // Add any approved users that aren't already in allUsers
+    approvedUsers.forEach(userId => {
+        if (!this.allUsers.includes(userId)) {
+            this.allUsers.push(userId);
+        }
+    });
+
     next();
 });
 
