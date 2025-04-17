@@ -23,6 +23,7 @@ export const io = new Server(server, {
 import "./src/sockets/index.socket";
 
 // Start the server
-server.listen(PORT, HOST, async () => {
+server.listen(PORT, async () => {
     await connectDB();
+    console.log(`Server is running on http://${HOST}:${PORT}`);
 });
