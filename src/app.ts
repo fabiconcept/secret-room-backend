@@ -17,6 +17,9 @@ app.use(cors({
 
 app.use("/api/server", ServerRoute.default);
 app.use("/api/messages", messagesRouter);
+app.use("/", (req, res) => {
+    res.send("Welcome to Secret Room API");
+});
 
 app.use(errorHandler);
 
