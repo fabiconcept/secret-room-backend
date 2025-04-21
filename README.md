@@ -1,4 +1,4 @@
-![Project Snapshot](https://github.com/fabiconcept/secret-room-backend/blob/main/image-main.png)
+![Project Snapshot](https://github.com/fabiconcept/secret-room-backend/blob/main/image.png)
 # 🕵️‍♂️ Secret Room - Backend
 
 **Secret Room** is a fully anonymous, real-time chat web app that lets users create temporary servers and invite others to chat without ever revealing their identity. This is the backend service powering the chat experience, built with **Node.js**, **Express**, **MongoDB**, and **Socket.io**.
