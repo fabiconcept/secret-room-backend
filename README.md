@@ -1,6 +1,32 @@
 ![Project Snapshot](https://github.com/fabiconcept/secret-room-backend/blob/main/image.png)
 # 🕵️‍♂️ Secret Room - Backend
 
+<div align="center" style="maargin: 2rem 0;">
+  <div>
+    <img src="https://img.shields.io/badge/last_commit-last_friday-blue?style=flat-square&logo=git" alt="Last Commit" />
+    <img src="https://img.shields.io/badge/typescript-100.0%25-blue?style=flat-square&logo=typescript" alt="TypeScript Usage" />
+    <img src="https://img.shields.io/badge/languages-1-blue?style=flat-square" alt="Languages" />
+  </div>
+
+  <h2>Built with the tools and technologies:</h2>
+
+  <div>
+    <img src="https://img.shields.io/badge/-Express-black?style=flat-square&logo=express" alt="Express" />
+    <img src="https://img.shields.io/badge/-JSON-black?style=flat-square&logo=json" alt="JSON" />
+    <img src="https://img.shields.io/badge/-Socket.io-black?style=flat-square&logo=socket.io" alt="Socket.io" />
+    <img src="https://img.shields.io/badge/-npm-cb3837?style=flat-square&logo=npm" alt="npm" />
+    <img src="https://img.shields.io/badge/-Mongoose-red?style=flat-square&logo=mongodb" alt="Mongoose" />
+  </div>
+  
+  <div>
+    <img src="https://img.shields.io/badge/-.ENV-ECD53F?style=flat-square&logo=dotenv" alt=".ENV" />
+    <img src="https://img.shields.io/badge/-Nodemon-76D04B?style=flat-square&logo=nodemon" alt="Nodemon" />
+    <img src="https://img.shields.io/badge/-TypeScript-3178C6?style=flat-square&logo=typescript" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/-ts--node-3178C6?style=flat-square&logo=ts-node" alt="ts-node" />
+    <img src="https://img.shields.io/badge/-Socket-8A2BE2?style=flat-square&logo=socket.io" alt="Socket" />
+  </div>
+</div>
+
 **Secret Room** is a fully anonymous, real-time chat web app that lets users create temporary servers and invite others to chat without ever revealing their identity. This is the backend service powering the chat experience, built with **Node.js**, **Express**, **MongoDB**, and **Socket.io**.
 
 > 💡 This is my first personal Node.js backend project. It focuses heavily on secure communication, temporary server lifecycles, and anonymous user management.
