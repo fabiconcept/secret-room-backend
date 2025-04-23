@@ -9,6 +9,7 @@ const serverSchema = new mongoose.Schema({
     expiresAt: { type: Date, required: true },
     createdAt: { type: Date, default: Date.now },
     approvedUsers: [{ type: String, ref: 'User' }],
+    type: { type: String, enum: ['Public', 'Private'], default: 'Public' },
     allUsers: [{ type: String, ref: 'User' }]
 });
 
