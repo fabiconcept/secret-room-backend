@@ -194,15 +194,6 @@ class ServerController implements IServerController {
                 throw new AppError(404, "Server not found");
             }
 
-            // Check if server has expired
-            if (server.expiresAt < new Date()) {
-                await Server.deleteOne({ serverId });
-                await Message.deleteMany({ serverId });
-                await Invitation.deleteMany({ serverId });
-                clearServerUsers(serverId);
-                throw new AppError(410, "Server has expired and been deleted");
-            }
-
             // Check if user is in server
             const isActive = await isUserInServer(serverId, userId as string);
             const username = generateUsername(`${userId}-${serverId}`);
@@ -527,17 +518,7 @@ class ServerController implements IServerController {
                 throw new AppError(403, "You are not the owner of this server");
             }
 
-            // Remove server from user
-            await User.updateMany({ servers: serverId }, { $pull: { servers: serverId } });
-
-            // Delete server
-            await Server.deleteOne({ serverId });
-
-            // Delete messages
-            await Message.deleteMany({ serverId });
-
-            // Delete invitations
-            await Invitation.deleteMany({ serverId });
+            await this.deleteServerById(serverId);
 
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);
@@ -547,6 +528,45 @@ class ServerController implements IServerController {
             });
         } catch (error) {
             next(error);
+        }
+    }
+
+    private async deleteServerById(serverId: string) {
+        try {
+            const server = await Server.findOne({ serverId });
+            if (!server) {
+                throw new AppError(404, "Server not found");
+            }
+
+            // Remove server from user
+            await User.updateMany({ servers: serverId }, { $pull: { servers: serverId } });
+
+            // Delete messages
+            await Message.deleteMany({ serverId });
+
+            // Delete invitations
+            await Invitation.deleteMany({ serverId });
+
+            // Delete server
+            await Server.deleteOne({ serverId });
+
+            const socketService = getSocketService();
+            socketService.broadcastServerDeleted(serverId);
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    public async checkAndDestroyExpiredServers() {
+        const expiredServers = await Server.find({ expiresAt: { $lte: new Date() } });
+        for (const server of expiredServers) {
+            if (server.type === 'Public') {
+                server.expiresAt = new Date();
+                await server.save();
+                // Skip public servers
+                continue;
+            }
+            await this.deleteServerById(server.serverId);
         }
     }
 }
@@ -578,3 +598,6 @@ export const LeaveServer = (serverId: string, userId: string): Promise<void> =>
 
 export const DeleteServer = (req: AuthRequest, res: Response, next: NextFunction): Promise<void> =>
     serverController.deleteServer(req, res, next);
+
+export const CheckAndDestroyExpiredServers = (): Promise<void> =>
+    serverController.checkAndDestroyExpiredServers();
