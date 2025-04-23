@@ -4,6 +4,8 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import { config } from "./src/config/dotenv.config";
 import connectDB from "./src/config/db";
+import cron from "node-cron";
+import { CheckAndDestroyExpiredServers } from "./src/controllers/server.controller";
 
 // Constants
 const PORT = config.PORT;
@@ -21,6 +23,14 @@ export const io = new Server(server, {
 });
 
 import "./src/sockets/index.socket";
+
+
+// Set up cron job to check for expired servers every minute
+cron.schedule('* * * * *', async () => {
+    console.log("Checking for expired servers...");
+    await CheckAndDestroyExpiredServers();
+    console.log("Cleaner job completed");
+});
 
 // Start the server
 server.listen(PORT, async () => {
