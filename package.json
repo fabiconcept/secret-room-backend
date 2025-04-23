@@ -19,12 +19,14 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.12.1",
+    "node-cron": "^3.0.3",
     "nodemon": "^3.1.9",
     "socket.io": "^4.8.1",
     "typescript": "^5.8.2",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.11",
     "ts-node": "^10.9.2"
   },
   "keywords": [],
