@@ -568,6 +568,8 @@ class ServerController implements IServerController {
             }
             await this.deleteServerById(server.serverId);
         }
+
+        console.log(`${expiredServers.length} servers have been deleted`);
     }
 }
 
