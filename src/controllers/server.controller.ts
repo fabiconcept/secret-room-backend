@@ -132,6 +132,7 @@ class ServerController implements IServerController {
             const serverData = this.generateServerData(request.body);
             const server = new Server({
                 ...serverData,
+                type: "Private",
                 owner: createUserIdentity.userId,
                 globalInvitationId: `global-${generateId()}`
             });
