@@ -571,13 +571,15 @@ class ServerController implements IServerController {
 
             // Check if the server has expired
             const expirationDate = new Date(server.expiresAt);
+
+            console.log(`Checking server ${server.serverId}, ${expirationDate}...`);
             if (expirationDate < new Date()) {
                 counter++;
                 await this.deleteServerById(server.serverId);
             }
         }
 
-        console.log(`${counter} servers have been deleted`);
+        console.log(`${counter} servers have been deleted, ${expiredServers.length - counter} servers remain`);
     }
 }
 
