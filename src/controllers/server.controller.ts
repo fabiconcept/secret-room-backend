@@ -559,7 +559,8 @@ class ServerController implements IServerController {
     }
 
     public async checkAndDestroyExpiredServers() {
-        const expiredServers = await Server.find({ expiresAt: { $lte: new Date() } });
+        let counter = 0;
+        const expiredServers = await Server.find({ type: "Private"});
         for (const server of expiredServers) {
             if (server.type === 'Public') {
                 server.expiresAt = new Date();
@@ -567,10 +568,16 @@ class ServerController implements IServerController {
                 // Skip public servers
                 continue;
             }
-            await this.deleteServerById(server.serverId);
+
+            // Check if the server has expired
+            const expirationDate = new Date(server.expiresAt);
+            if (expirationDate < new Date()) {
+                counter++;
+                await this.deleteServerById(server.serverId);
+            }
         }
 
-        console.log(`${expiredServers.length} servers have been deleted`);
+        console.log(`${counter} servers have been deleted`);
     }
 }
 
