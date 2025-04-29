@@ -72,6 +72,16 @@ class AuthMiddleware {
         }
     }
 
+    public shouldRefreshToken(decoded: JWTPayload): boolean {
+        const exp = (decoded as any).exp;
+        if (!exp) return false;
+        
+        const currentTime = Math.floor(Date.now() / 1000);
+        const timeUntilExpiry = exp - currentTime;
+        
+        return timeUntilExpiry < 3600;
+    }
+
     public authenticate = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
         try {
             // Always validate API key
@@ -102,6 +112,12 @@ class AuthMiddleware {
 
             // Validate server access
             await this.validateServerAccess(decoded);
+
+            // Check if token needs refresh
+            if (this.shouldRefreshToken(decoded)) {
+                const newToken = this.generateToken(decoded);
+                res.setHeader("X-Refresh-Token", newToken);
+            }
 
             req.user = decoded;
 

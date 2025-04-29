@@ -4,6 +4,7 @@ import errorHandler from "./middleware/errorHandler";
 import { config } from "./config/dotenv.config";
 import * as ServerRoute from "./routes/server.routes";
 import messagesRouter from "./routes/messages.route";
+import authRouter from "./routes/auth.routes";
 
 const app = express();
 
@@ -17,8 +18,9 @@ app.use(cors({
 
 app.use("/api/server", ServerRoute.default);
 app.use("/api/messages", messagesRouter);
-app.use("/", (req, res) => {
-    res.send("Welcome to Secret Room API");
+app.use("/api/auth", authRouter);
+app.use("/", (_, res) => {
+    res.status(404).send("How TF did you get here? 😂");
 });
 
 app.use(errorHandler);

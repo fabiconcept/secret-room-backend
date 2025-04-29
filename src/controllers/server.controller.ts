@@ -178,8 +178,13 @@ class ServerController implements IServerController {
 
     public async getServer(request: AuthRequest, response: Response, next: NextFunction): Promise<void> {
         try {
+            if (!request.user) {
+                throw new AppError(401, "Unauthorized");
+            }
+
             const { serverId } = request.params;
-            const userId = request.user?.userId;
+            const userId = request.user.userId;
+            const refreshToken = request.header("X-Refresh-Token");
 
             if (!serverId) {
                 throw new AppError(400, "Server ID is required");
@@ -226,7 +231,8 @@ class ServerController implements IServerController {
                     global_invitation_id: server.globalInvitationId,
                     owner: server.owner,
                     username
-                }
+                },
+                refresh_token: refreshToken
             });
         } catch (error) {
             next(error);
@@ -237,6 +243,7 @@ class ServerController implements IServerController {
         try {
             const { serverId } = request.params;
             const userId = request.user?.userId;
+            const refreshToken = request.header("X-Refresh-Token");
 
             if (!serverId) {
                 throw new AppError(400, "Server ID is required");
@@ -260,7 +267,8 @@ class ServerController implements IServerController {
 
             response.status(200).json({
                 message: "Active users retrieved successfully",
-                data: activeUsers
+                data: activeUsers,
+                refresh_token: refreshToken
             });
         } catch (error) {
             next(error);
