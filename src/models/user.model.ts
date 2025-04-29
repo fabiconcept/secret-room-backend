@@ -9,6 +9,8 @@ const userSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     bgColor: { type: String, default: null },
     textColor: { type: String, default: null },
+    typing: { type: Boolean, default: false },
+    typingTo: { type: String, default: null },
 });
 
 // Pre-save hook to set background and text colors if not already set

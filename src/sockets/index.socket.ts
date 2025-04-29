@@ -6,6 +6,7 @@ import { getActiveUsers, setUserOnlineStatus } from '../controllers/users.contro
 import messagesController from '../controllers/messages.controller';
 import { Message } from '../types/message.interface';
 import { LeaveServer } from '../controllers/server.controller';
+import { User } from '../models/user.model';
 
 class ServerSocketService {
     private static instance: ServerSocketService;
@@ -58,6 +59,9 @@ class ServerSocketService {
             
             // Also emit a specific status update event for real-time UI updates
             this.io.to(update.serverId).emit('user_status_changed', update);
+            
+            // Emit typing status
+            await this.broadcastUserTypingStatus(update.serverId, update.userId, false, "");
         } catch (error) {
             console.error('Error broadcasting user status:', error);
         }
@@ -179,6 +183,9 @@ class ServerSocketService {
                 currentServerId = null;
                 currentUserId = null;
                 
+                // emit typing status
+                await this.broadcastUserTypingStatus(serverId, serverId, false, "");
+
                 socket.emit('server_left', {
                     type: 'status',
                     content: 'Left the server',
@@ -186,12 +193,37 @@ class ServerSocketService {
                 });
             });
 
+            // user is typing
+            socket.on('typing', async (serverId: string, receiverId: string, userId: string) => {
+                await User.updateOne({ userId }, { typing: true, typingTo: receiverId });
+                await this.broadcastUserTypingStatus(serverId, userId, true, receiverId);
+            });
+
+            // user is not typing
+            socket.on('not_typing', async (serverId: string, userId: string) => {
+                const user = await User.findOne({ userId });
+                if (!user) {
+                    return;
+                }
+
+                user.typing = false;
+                const typingTo = user.typingTo;
+                user.typingTo = "";
+                await user.save();
+                await this.broadcastUserTypingStatus(serverId, userId, false, typingTo);
+            });
+
+            // user disconnect
             socket.on('disconnect', async () => {
                 if (currentUserId) {
                     await this.untrackUserSocket(currentUserId, socket.id);
                 }
             });
         });
+    }
+
+    private async broadcastUserTypingStatus(serverId: string, userId: string, typing: boolean, typingTo: string | null): Promise<void> {
+        this.io.in(serverId).emit('user_typing', { userId, typing, typingTo });
     }
 
     public emitToServer(serverId: string, message: ServerMessage): void {
