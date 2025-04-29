@@ -297,7 +297,7 @@ class ServerController implements IServerController {
             }
 
             // Check if server has expired
-            if (server.expiresAt < new Date()) {
+            if (server.expiresAt < new Date() && server.type === "Private") {
                 throw new AppError(411, "This server has expired 02");
             }
 

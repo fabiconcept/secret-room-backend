@@ -67,7 +67,7 @@ class AuthMiddleware {
             throw new AppError(404, "Server not found");
         }
 
-        if (server.expiresAt < new Date()) {
+        if (server.expiresAt < new Date() && server.type === "Private") {
             throw new AppError(410, "Server has expired 01");
         }
     }
