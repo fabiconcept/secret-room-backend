@@ -68,7 +68,7 @@ class AuthMiddleware {
         }
 
         if (server.expiresAt < new Date()) {
-            throw new AppError(410, "Server has expired");
+            throw new AppError(410, "Server has expired 01");
         }
     }
 

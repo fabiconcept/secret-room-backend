@@ -298,7 +298,7 @@ class ServerController implements IServerController {
 
             // Check if server has expired
             if (server.expiresAt < new Date()) {
-                throw new AppError(410, "This server has expired");
+                throw new AppError(410, "This server has expired 02");
             }
 
             // Check if user already exists in server
