@@ -3,6 +3,9 @@ import { AppStatistics, IAppStatistics } from '../models/statistics.model';
 import { config } from '../config/dotenv.config';
 import { initialStats, STAT_KEYS } from '../utils/constants';
 import { FilterQuery } from 'mongoose';
+import { Server } from '../models/server.model';
+import { User } from '../models/user.model';
+import { Message } from '../models/messages.model';
 
 const { STATS_ID } = config;
 
@@ -12,6 +15,31 @@ type UpdateResult = { success: boolean; data?: any; error?: Error };
 
 export class StatisticsController {
     // Individual field-specific methods
+
+    constructor() {
+        this.initialize();
+    }
+
+    private async initialize() {
+        const stats = await AppStatistics.findOne({ _id: STATS_ID });
+
+        const servers = await Server.find();
+        const users = await User.find();
+        const messages = await Message.find();
+
+        const messagesWithAttachments = await Message.find({ attachments: { $exists: true, $ne: [] } });
+        const payload = {
+            ...initialStats,
+            totalServers: servers.length,
+            totalMessages: messages.length,
+            totalUsers: users.length,
+            totalFileUploads: messagesWithAttachments.length
+        };
+
+        if (!stats) {
+            await AppStatistics.create(payload);
+        }
+    }
     
     /**
      * Increment total servers count
