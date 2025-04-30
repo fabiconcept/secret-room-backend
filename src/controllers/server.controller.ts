@@ -17,7 +17,6 @@ import { generateToken } from "../middleware/auth";
 import { AuthRequest } from "../middleware/auth";
 import { ServerAction } from "../types/server-socket.interface";
 import { User } from "../models/user.model";
-import { StatisticsController } from "./statistics.controller";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
@@ -129,9 +128,6 @@ class ServerController implements IServerController {
             const createUserIdentity = {
                 userId: request.body.fingerprint,
             }
-
-            await StatisticsController.incrementTotalServers(1);
-            await StatisticsController.incrementActiveServers(1);
 
             const serverData = this.generateServerData(request.body);
             const server = new Server({
@@ -562,7 +558,6 @@ class ServerController implements IServerController {
 
             // Delete server
             await Server.deleteOne({ serverId });
-            await StatisticsController.incrementActiveServers(-1);
 
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);
