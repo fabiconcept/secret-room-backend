@@ -11,4 +11,5 @@ export const config = {
     MONGODB_URI: process.env.MONGODB_URI || "mongodb://localhost:27017/secret-room",
     CORS_ORIGIN: process.env.CORS_ORIGIN || "http://localhost:3000",
     API_KEY: process.env.API_KEY || "supersecretkey",
+    STATS_ID: process.env.STATS_ID || "app-demo-stats",
 }

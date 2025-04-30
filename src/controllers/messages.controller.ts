@@ -6,6 +6,7 @@ import { getSocketService } from "../sockets/index.socket";
 import { NextFunction, Response } from "express";
 import { AuthRequest } from "../middleware/auth";
 import { decryptMessage } from "../utils/messages.utli";
+import { StatisticsController } from "./statistics.controller";
 
 class MessagesController {
     private static instance: MessagesController;
@@ -67,6 +68,39 @@ class MessagesController {
             sent: message.sent,
             attachmentUrl: payload.attachmentUrl || undefined
         }
+
+        await StatisticsController.incrementTotalMessages(1);
+        
+        if(attachmentUrl){
+            await StatisticsController.incrementTotalFileUploads(1);
+            switch(attachmentUrl.split('.').pop()){
+                case 'pdf':
+                    await StatisticsController.incrementPdfUploads(1);
+                    break;
+                case 'jpg':
+                    await StatisticsController.incrementImageUploads(1);
+                    break;
+                case 'png':
+                    await StatisticsController.incrementImageUploads(1);
+                    break;
+                case 'jpeg':
+                    await StatisticsController.incrementImageUploads(1);
+                    break;
+                case 'gif':
+                    await StatisticsController.incrementImageUploads(1);
+                    break;
+                case 'mp4':
+                    await StatisticsController.incrementVideoUploads(1);
+                    break;
+                case 'webm':
+                    await StatisticsController.incrementVideoUploads(1);
+                    break;
+                default:
+                    await StatisticsController.incrementOtherFileUploads(1);
+                    break;
+            }
+        }
+
         const socketService = getSocketService();
         socketService.broadcastNewMessage(serverId, output);
     }
