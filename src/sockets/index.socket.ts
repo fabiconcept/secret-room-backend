@@ -32,7 +32,7 @@ class ServerSocketService {
         try {
             const server = await Server.findOne({ serverId });
             if (!server) return false;
-            if (server.expiresAt < new Date()) return false;
+            if (server.expiresAt < new Date() && server.type === "Private") return false;
             return true;
         } catch (error) {
             console.error('Error validating server access:', error);
