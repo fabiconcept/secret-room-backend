@@ -568,15 +568,13 @@ class ServerController implements IServerController {
 
     public async checkAndDestroyExpiredServers() {
         let counter = 0;
+        const publicServers = await Server.find({ type: "Public"});
+        for (const server of publicServers) {
+            server.expiresAt = new Date();
+            await server.save();
+        }
         const expiredServers = await Server.find({ type: "Private"});
         for (const server of expiredServers) {
-            if (server.type === 'Public') {
-                server.expiresAt = new Date();
-                await server.save();
-                // Skip public servers
-                continue;
-            }
-
             // Check if the server has expired
             const expirationDate = new Date(server.expiresAt).getTime();
 
