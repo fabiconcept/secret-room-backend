@@ -537,6 +537,8 @@ class ServerController implements IServerController {
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);
 
+            await StatisticsController.increment('deletedServers');
+
             response.status(200).json({
                 message: "Server deleted successfully"
             });
@@ -589,6 +591,7 @@ class ServerController implements IServerController {
             if (expirationDate < new Date().getTime()) {
                 counter++;
                 await this.deleteServerById(server.serverId);
+                await StatisticsController.increment('expiredServers');
             }
         }
 

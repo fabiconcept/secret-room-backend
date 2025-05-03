@@ -9,6 +9,8 @@ export interface IAppStatistics extends Document {
   activeServers: number;
   activeUsers: number;
   totalFileUploads: number;
+  deletedServers: number;
+  expiredServers: number;
   fileTypes: {
     images: number;
     videos: number;
@@ -27,6 +29,8 @@ const AppStatisticsSchema = new Schema<IAppStatistics>({
   activeServers: { type: Number, default: 0 },
   activeUsers: { type: Number, default: 0 },
   totalFileUploads: { type: Number, default: 0 },
+  deletedServers: { type: Number, default: 0 },
+  expiredServers: { type: Number, default: 0 },
   fileTypes: {
     images: { type: Number, default: 0 },
     videos: { type: Number, default: 0 },

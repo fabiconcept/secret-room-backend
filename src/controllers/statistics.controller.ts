@@ -9,7 +9,7 @@ import { Message } from '../models/messages.model';
 
 const { STATS_ID } = config;
 
-type StatKey = keyof typeof initialStats;
+type StatKey = 'totalServers' | 'totalMessages' | 'totalUsers' | 'activeServers' | 'activeUsers' | 'totalFileUploads' | 'fileTypes' | 'deletedServers' | 'expiredServers';
 type FileTypeKey = keyof IAppStatistics['fileTypes'];
 type UpdateResult = { success: boolean; data?: any; error?: Error };
 
@@ -25,23 +25,39 @@ export class StatisticsController {
             const messages = await Message.find();
 
             // Count file types from messages
-            const fileStats = {
-                images: 0,
-                videos: 0,
-                gifs: 0,
-                pdfs: 0,
-                others: 0
+            const initialStats = {
+                totalServers: 0,
+                totalMessages: 0,
+                totalUsers: 0,
+                activeServers: 0,
+                activeUsers: 0,
+                totalFileUploads: 0,
+                deletedServers: 0,
+                expiredServers: 0,
+                fileTypes: {
+                    images: 0,
+                    videos: 0,
+                    gifs: 0,
+                    pdfs: 0,
+                    others: 0
+                }
             };
 
             const messagesWithAttachments = await Message.find({ attachmentUrl: { $exists: true, $ne: '' } });
             messagesWithAttachments.forEach(msg => {
                 if (msg.attachmentUrl) {
                     const ext = msg.attachmentUrl.toLowerCase();
-                    if (ext.match(/\.(jpg|jpeg|png|webp)$/)) fileStats.images++;
-                    else if (ext.match(/\.(mp4|webm|mov)$/)) fileStats.videos++;
-                    else if (ext.match(/\.gif$/)) fileStats.gifs++;
-                    else if (ext.match(/\.pdf$/)) fileStats.pdfs++;
-                    else fileStats.others++;
+                    if (ext.match(/\.(jpg|jpeg|png|webp)$/)) {
+                        initialStats.fileTypes.images++;
+                    } else if (ext.match(/\.(mp4|webm|mov)$/)) {
+                        initialStats.fileTypes.videos++;
+                    } else if (ext.match(/\.gif$/)) {
+                        initialStats.fileTypes.gifs++;
+                    } else if (ext.match(/\.pdf$/)) {
+                        initialStats.fileTypes.pdfs++;
+                    } else {
+                        initialStats.fileTypes.others++;
+                    }
                 }
             });
 
@@ -52,8 +68,7 @@ export class StatisticsController {
                 totalMessages: messages.length,
                 totalUsers: users.length,
                 totalFileUploads: messagesWithAttachments.length,
-                fileTypes: fileStats,
-                activeUsers: users.filter(u => u.isOnline === true).length,
+                activeUsers: users.filter((u) => u.isOnline === true).length,
                 activeServers: servers.length
             };
 
