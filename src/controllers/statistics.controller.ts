@@ -43,7 +43,7 @@ export class StatisticsController {
                 }
             };
 
-            const messagesWithAttachments = await Message.find({ attachmentUrl: { $exists: true, $ne: '' } });
+            const messagesWithAttachments = await Message.find({ attachmentUrl: { $exists: true, $ne: null } });
             messagesWithAttachments.forEach(msg => {
                 if (msg.attachmentUrl) {
                     const ext = msg.attachmentUrl.toLowerCase();
