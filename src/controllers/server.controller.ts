@@ -163,6 +163,7 @@ class ServerController implements IServerController {
             });
 
             await StatisticsController.incrementTotalServers();
+            await StatisticsController.incrementActiveServers();
 
 
             response.status(201).json({
@@ -536,9 +537,6 @@ class ServerController implements IServerController {
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);
 
-            await StatisticsController.incrementTotalServers(-1);
-
-
             response.status(200).json({
                 message: "Server deleted successfully"
             });
@@ -565,6 +563,8 @@ class ServerController implements IServerController {
 
             // Delete server
             await Server.deleteOne({ serverId });
+
+            await StatisticsController.incrementActiveServers(-1);
 
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);

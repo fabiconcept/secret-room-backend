@@ -14,12 +14,10 @@ type FileTypeKey = keyof IAppStatistics['fileTypes'];
 type UpdateResult = { success: boolean; data?: any; error?: Error };
 
 export class StatisticsController {
-    constructor() {
-        this.initialize();
-    }
-
-    private async initialize() {
+    public static async initialize() {
         try {
+
+            console.log('Initializing statistics...');
             const stats = await AppStatistics.findOne({ id: STATS_ID });
 
             const servers = await Server.find();
@@ -48,7 +46,7 @@ export class StatisticsController {
             });
 
             const payload = {
-                _id: STATS_ID,
+                id: STATS_ID,
                 ...initialStats,
                 totalServers: servers.length,
                 totalMessages: messages.length,
@@ -59,10 +57,12 @@ export class StatisticsController {
                 activeServers: servers.length
             };
 
+            console.log(payload);
+
             if (!stats) {
                 await AppStatistics.create(payload);
             } else {
-                await AppStatistics.findByIdAndUpdate(STATS_ID, payload, { new: true });
+                await AppStatistics.findOneAndUpdate({ id: STATS_ID }, payload, { new: true });
             }
         } catch (error) {
             console.error('Error initializing statistics:', error);
@@ -320,7 +320,7 @@ export class StatisticsController {
             }
             
             const stats = await AppStatistics.findOneAndUpdate(
-                { _id: STATS_ID },
+                { id: STATS_ID },
                 { 
                     $inc: { [key]: count },
                     $set: { lastUpdated: new Date() }
@@ -352,7 +352,7 @@ export class StatisticsController {
             }
             
             const stats = await AppStatistics.findOneAndUpdate(
-                { _id: STATS_ID },
+                { id: STATS_ID },
                 { 
                     $inc: { [`fileTypes.${fileType}`]: count },
                     $set: { lastUpdated: new Date() } 
@@ -376,7 +376,7 @@ export class StatisticsController {
     static async set(key: StatKey, value: number): Promise<UpdateResult> {
         try {
             const stats = await AppStatistics.findOneAndUpdate(
-                { _id: STATS_ID },
+                { id: STATS_ID },
                 { 
                     $set: { 
                         [key]: value,
@@ -400,7 +400,7 @@ export class StatisticsController {
      */
     static async getStats(filter?: FilterQuery<IAppStatistics>): Promise<UpdateResult> {
         try {
-            const query = filter ? { _id: STATS_ID, ...filter } : { _id: STATS_ID };
+            const query = filter ? { id: STATS_ID, ...filter } : { id: STATS_ID };
             const stats = await AppStatistics.findOne(query).lean();
             
             return { success: true, data: stats };
@@ -417,7 +417,7 @@ export class StatisticsController {
     static async resetStats(): Promise<UpdateResult> {
         try {
             const stats = await AppStatistics.findOneAndUpdate(
-                { _id: STATS_ID },
+                { id: STATS_ID },
                 { 
                     $set: { 
                         ...initialStats,
@@ -449,7 +449,7 @@ export class StatisticsController {
             });
             
             const stats = await AppStatistics.findOneAndUpdate(
-                { _id: STATS_ID },
+                { id: STATS_ID },
                 { 
                     $set: { 
                         ...updateObj,
@@ -466,3 +466,5 @@ export class StatisticsController {
         }
     }
 }
+
+StatisticsController.initialize();

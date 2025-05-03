@@ -77,6 +77,8 @@ class UserController {
                 lastSeen: new Date()
             }
         );
+
+        await StatisticsController.decrementActiveUsers();
         
         console.log(`User ${userId} removed from Server ${serverId}`);
     }
@@ -121,6 +123,8 @@ class UserController {
                 lastSeen: new Date()
             }
         );
+
+        await StatisticsController.decrementActiveUsers(server.approvedUsers.length);
 
         server.approvedUsers = [];
         await server.save();
