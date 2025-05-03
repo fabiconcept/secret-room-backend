@@ -18,6 +18,7 @@ export interface ServerData {
     serverName: string;
     salt: string;
     expiresAt: Date;
+    isActive?: boolean;
 }
 
 export interface IServerController {

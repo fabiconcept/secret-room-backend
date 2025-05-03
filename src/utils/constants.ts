@@ -1,7 +1,3 @@
-// utils/constants.ts
-
-import { IAppStatistics } from '../models/statistics.model';
-
 /**
  * Initial statistics values used for new instances and resets
  * These values match the structure of the IAppStatistics interface

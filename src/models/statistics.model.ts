@@ -1,6 +1,8 @@
 import { Schema, model, Document } from 'mongoose';
+import { config } from '../config/dotenv.config';
 
 export interface IAppStatistics extends Document {
+  id: string;
   totalServers: number;
   totalMessages: number;
   totalUsers: number;
@@ -18,6 +20,7 @@ export interface IAppStatistics extends Document {
 }
 
 const AppStatisticsSchema = new Schema<IAppStatistics>({
+  id: { type: String, default: config.STATS_ID },
   totalServers: { type: Number, default: 0 },
   totalMessages: { type: Number, default: 0 },
   totalUsers: { type: Number, default: 0 },

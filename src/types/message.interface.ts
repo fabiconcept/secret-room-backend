@@ -8,5 +8,6 @@ export interface Message {
     readBySender: boolean,
     readByReceiver: boolean,
     sent: boolean,
-    attachmentUrl?: string
+    attachmentUrl?: string,
+    attachments?: string[]
 }
