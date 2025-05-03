@@ -1,7 +1,7 @@
 // controllers/statistics.controller.ts
 import { AppStatistics, IAppStatistics } from '../models/statistics.model';
 import { config } from '../config/dotenv.config';
-import { initialStats, STAT_KEYS } from '../utils/constants';
+import { initialStats } from '../utils/constants';
 import { FilterQuery } from 'mongoose';
 import { Server } from '../models/server.model';
 import { User } from '../models/user.model';
@@ -14,30 +14,58 @@ type FileTypeKey = keyof IAppStatistics['fileTypes'];
 type UpdateResult = { success: boolean; data?: any; error?: Error };
 
 export class StatisticsController {
-    // Individual field-specific methods
-
     constructor() {
         this.initialize();
     }
 
     private async initialize() {
-        const stats = await AppStatistics.findOne({ _id: STATS_ID });
+        try {
+            const stats = await AppStatistics.findOne({ id: STATS_ID });
 
-        const servers = await Server.find();
-        const users = await User.find();
-        const messages = await Message.find();
+            const servers = await Server.find();
+            const users = await User.find();
+            const messages = await Message.find();
 
-        const messagesWithAttachments = await Message.find({ attachments: { $exists: true, $ne: [] } });
-        const payload = {
-            ...initialStats,
-            totalServers: servers.length,
-            totalMessages: messages.length,
-            totalUsers: users.length,
-            totalFileUploads: messagesWithAttachments.length
-        };
+            // Count file types from messages
+            const fileStats = {
+                images: 0,
+                videos: 0,
+                gifs: 0,
+                pdfs: 0,
+                others: 0
+            };
 
-        if (!stats) {
-            await AppStatistics.create(payload);
+            const messagesWithAttachments = await Message.find({ attachmentUrl: { $exists: true, $ne: '' } });
+            messagesWithAttachments.forEach(msg => {
+                if (msg.attachmentUrl) {
+                    const ext = msg.attachmentUrl.toLowerCase();
+                    if (ext.match(/\.(jpg|jpeg|png|webp)$/)) fileStats.images++;
+                    else if (ext.match(/\.(mp4|webm|mov)$/)) fileStats.videos++;
+                    else if (ext.match(/\.gif$/)) fileStats.gifs++;
+                    else if (ext.match(/\.pdf$/)) fileStats.pdfs++;
+                    else fileStats.others++;
+                }
+            });
+
+            const payload = {
+                _id: STATS_ID,
+                ...initialStats,
+                totalServers: servers.length,
+                totalMessages: messages.length,
+                totalUsers: users.length,
+                totalFileUploads: messagesWithAttachments.length,
+                fileTypes: fileStats,
+                activeUsers: users.filter(u => u.isOnline === true).length,
+                activeServers: servers.length
+            };
+
+            if (!stats) {
+                await AppStatistics.create(payload);
+            } else {
+                await AppStatistics.findByIdAndUpdate(STATS_ID, payload, { new: true });
+            }
+        } catch (error) {
+            console.error('Error initializing statistics:', error);
         }
     }
     
@@ -111,6 +139,10 @@ export class StatisticsController {
      */
     static async incrementActiveUsers(count = 1): Promise<UpdateResult> {
         return this.increment('activeUsers', count);
+    }
+
+    static async decrementActiveUsers(count = 1): Promise<UpdateResult> {
+        return this.increment('activeUsers', -count);
     }
     
     /**
@@ -309,10 +341,10 @@ export class StatisticsController {
      * @param count The amount to increment by (default: 1)
      * @returns Promise with the operation result
      */
-    static async incrementFileType(fileType: FileTypeKey, count = 1): Promise<UpdateResult> {
+    static async incrementFileType(fileType: FileTypeKey | string, count = 1): Promise<UpdateResult> {
         try {
             // Validate increment amount
-            if (isNaN(count) || count <= 0) {
+            if (isNaN(count)) {
                 return { 
                     success: false, 
                     error: new Error(`Invalid increment value for file type "${fileType}": ${count}`) 
@@ -322,7 +354,7 @@ export class StatisticsController {
             const stats = await AppStatistics.findOneAndUpdate(
                 { _id: STATS_ID },
                 { 
-                    $inc: { [`fileTypes.${fileType}`]: count, totalFileUploads: count },
+                    $inc: { [`fileTypes.${fileType}`]: count },
                     $set: { lastUpdated: new Date() } 
                 },
                 { upsert: true, new: true }
