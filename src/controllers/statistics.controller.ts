@@ -20,6 +20,8 @@ export class StatisticsController {
             console.log('Initializing statistics...');
             const stats = await AppStatistics.findOne({ id: STATS_ID });
 
+            if (stats) return;
+
             const servers = await Server.find();
             const users = await User.find();
             const messages = await Message.find();
@@ -74,11 +76,7 @@ export class StatisticsController {
 
             console.log(payload);
 
-            if (!stats) {
-                await AppStatistics.create(payload);
-            } else {
-                await AppStatistics.findOneAndUpdate({ id: STATS_ID }, payload, { new: true });
-            }
+            await AppStatistics.create(payload);
         } catch (error) {
             console.error('Error initializing statistics:', error);
         }
