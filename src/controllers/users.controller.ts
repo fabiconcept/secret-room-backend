@@ -1,6 +1,7 @@
 import { Server } from '../models/server.model';
 import { User } from '../models/user.model';
 import { generateUsername } from '../utils/user.util';
+import { StatisticsController } from './statistics.controller';
 
 interface ServerUser {
     userId: string;
@@ -35,7 +36,11 @@ class UserController {
                 isOnline: true,
                 currentServer: serverId
             });
+
+            await StatisticsController.incrementTotalUsers();
+            await StatisticsController.incrementActiveUsers();
         } else {
+            await StatisticsController.incrementActiveUsers();
             await User.updateOne(
                 { userId: user.userId },
                 { 
