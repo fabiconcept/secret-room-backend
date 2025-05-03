@@ -17,6 +17,7 @@ import { generateToken } from "../middleware/auth";
 import { AuthRequest } from "../middleware/auth";
 import { ServerAction } from "../types/server-socket.interface";
 import { User } from "../models/user.model";
+import { StatisticsController } from "./statistics.controller";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
@@ -160,6 +161,9 @@ class ServerController implements IServerController {
                 content: 'Server created successfully',
                 timestamp: Date.now()
             });
+
+            await StatisticsController.incrementTotalServers();
+
 
             response.status(201).json({
                 message: "Server created successfully",
@@ -531,6 +535,9 @@ class ServerController implements IServerController {
 
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);
+
+            await StatisticsController.incrementTotalServers(-1);
+
 
             response.status(200).json({
                 message: "Server deleted successfully"
