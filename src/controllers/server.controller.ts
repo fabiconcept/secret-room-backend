@@ -566,7 +566,7 @@ class ServerController implements IServerController {
             // Delete server
             await Server.deleteOne({ serverId });
 
-            await StatisticsController.incrementActiveServers(-1);
+            await StatisticsController.decrementActiveServers();
 
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);

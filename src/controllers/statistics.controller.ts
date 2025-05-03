@@ -140,6 +140,10 @@ export class StatisticsController {
         return this.increment('activeServers', count);
     }
     
+    static async decrementActiveServers(count = 1): Promise<UpdateResult> {
+        return this.increment('activeServers', -count);
+    }
+
     /**
      * Set active servers count
      * @param value New value to set
