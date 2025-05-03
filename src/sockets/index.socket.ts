@@ -7,6 +7,7 @@ import messagesController from '../controllers/messages.controller';
 import { Message } from '../types/message.interface';
 import { LeaveServer } from '../controllers/server.controller';
 import { User } from '../models/user.model';
+import { StatisticsController } from '../controllers/statistics.controller';
 
 class ServerSocketService {
     private static instance: ServerSocketService;
@@ -110,6 +111,7 @@ class ServerSocketService {
             let currentUserId: string | null = null;
 
             socket.on('join_server', async (payload: ServerJoinPayload) => {
+                await StatisticsController.incrementActiveUsers();
                 try {
                     const { serverId, userId } = payload;
                     currentServerId = serverId;
@@ -163,6 +165,16 @@ class ServerSocketService {
 
             socket.on('new-message', async (serverId: string, message: Message) => {
                 await messagesController.sendMessage(serverId, message.content, message.senderId, message.receiverId, message.attachmentUrl);
+                await StatisticsController.incrementTotalMessages();
+                if (message.attachmentUrl) {
+                    await StatisticsController.incrementTotalFileUploads();
+                    const ext = message.attachmentUrl.toLowerCase();
+                    if (ext.match(/\.(jpg|jpeg|png|webp)$/)) await StatisticsController.incrementFileType('images');
+                    else if (ext.match(/\.(mp4|webm|mov)$/)) await StatisticsController.incrementFileType('videos');
+                    else if (ext.match(/\.gif$/)) await StatisticsController.incrementFileType('gifs');
+                    else if (ext.match(/\.pdf$/)) await StatisticsController.incrementFileType('pdfs');
+                    else await StatisticsController.incrementFileType('others');
+                }
             });
 
             socket.on('mark_message_read', async (messageId: string) => {
@@ -170,6 +182,7 @@ class ServerSocketService {
             });
 
             socket.on('leave_server', async (serverId: string) => {
+                await StatisticsController.decrementActiveUsers();
                 socket.leave(serverId);
                 try {
                     if (currentUserId) {
