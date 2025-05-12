@@ -216,6 +216,8 @@ class ServerSocketService {
             socket.on('disconnect', async () => {
                 if (currentUserId) {
                     await this.untrackUserSocket(currentUserId, socket.id);
+                    if (!currentServerId) return;
+                    await setUserOnlineStatus(currentUserId, false, currentServerId);
                 }
             });
         });
