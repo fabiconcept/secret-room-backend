@@ -618,6 +618,8 @@ class ServerController implements IServerController {
             }
         }
 
+        await StatisticsController.updatePreviousStats();
+
     }
 }
 

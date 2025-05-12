@@ -69,7 +69,9 @@ export class StatisticsController {
                 totalUsers: users.length,
                 totalFileUploads: messagesWithAttachments.length,
                 activeUsers: users.filter((u) => u.isOnline === true).length,
-                activeServers: servers.length
+                activeServers: servers.length,
+                lastUpdated: new Date(),
+                previousStats: []
             };
 
             await AppStatistics.create(payload);
@@ -475,6 +477,60 @@ export class StatisticsController {
             return { success: true, data: stats };
         } catch (err) {
             console.error('Failed to batch update stats:', err);
+            return { success: false, error: err instanceof Error ? err : new Error(String(err)) };
+        }
+    }
+
+    static async updatePreviousStats(): Promise<UpdateResult> {
+        try {
+            const currentStats = await AppStatistics.findOne({ id: STATS_ID });
+            if (!currentStats) {
+                const stats = await AppStatistics.findOneAndUpdate(
+                    { id: STATS_ID },
+                    { 
+                        $set: { 
+                            previousStats: [initialStats],
+                            lastUpdated: new Date() 
+                        } 
+                    },
+                    { upsert: true, new: true }
+                );
+                return { success: true, data: stats };
+            }
+
+            const lastUpdated = currentStats.lastUpdated;
+            const today = new Date();
+            const isNotToday = lastUpdated.getDate() !== today.getDate() ||
+                             lastUpdated.getMonth() !== today.getMonth() ||
+                             lastUpdated.getFullYear() !== today.getFullYear();
+
+            if (isNotToday) {
+                const stats = await AppStatistics.findOneAndUpdate(
+                    { id: STATS_ID },
+                    { 
+                        $set: { 
+                            previousStats: [...currentStats.previousStats, {
+                                totalServers: currentStats.totalServers,
+                                totalMessages: currentStats.totalMessages,
+                                totalUsers: currentStats.totalUsers,
+                                activeServers: currentStats.activeServers,
+                                activeUsers: currentStats.activeUsers,
+                                totalFileUploads: currentStats.totalFileUploads,
+                                deletedServers: currentStats.deletedServers,
+                                expiredServers: currentStats.expiredServers,
+                                fileTypes: currentStats.fileTypes,
+                            }],
+                            lastUpdated: today
+                        } 
+                    },
+                    { new: true }
+                );
+                return { success: true, data: stats };
+            }
+
+            return { success: true, data: currentStats };
+        } catch (err) {
+            console.error('Failed to update previous stats:', err);
             return { success: false, error: err instanceof Error ? err : new Error(String(err)) };
         }
     }
