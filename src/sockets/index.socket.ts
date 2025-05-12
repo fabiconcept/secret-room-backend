@@ -7,6 +7,7 @@ import messagesController from '../controllers/messages.controller';
 import { Message } from '../types/message.interface';
 import { LeaveServer } from '../controllers/server.controller';
 import { User } from '../models/user.model';
+import { StatisticsController } from '../controllers/statistics.controller';
 
 class ServerSocketService {
     private static instance: ServerSocketService;
@@ -53,6 +54,12 @@ class ServerSocketService {
         try {
             // First update the user's status in the database
             await setUserOnlineStatus(update.userId, update.isOnline, update.serverId);
+
+            if (update.isOnline) {
+                await StatisticsController.incrementActiveUsers();
+            } else {
+                await StatisticsController.decrementActiveUsers();
+            }
             // Then broadcast the updated user list to all clients in the server
             await this.broadcastActiveUsers(update.serverId);
             
@@ -219,6 +226,7 @@ class ServerSocketService {
                     if (!currentServerId) return;
                     await setUserOnlineStatus(currentUserId, false, currentServerId);
                 }
+                await StatisticsController.decrementActiveUsers();
             });
         });
     }
