@@ -18,6 +18,7 @@ import { AuthRequest } from "../middleware/auth";
 import { ServerAction } from "../types/server-socket.interface";
 import { User } from "../models/user.model";
 import { StatisticsController } from "./statistics.controller";
+import messagesController from "./messages.controller";
 
 class ServerController implements IServerController {
     private static instance: ServerController;
@@ -332,6 +333,34 @@ class ServerController implements IServerController {
                 userId: userIdentity.userId,
                 serverId: server.serverId
             });
+
+            // send user a message if they joined a public server
+            if (server.type === "Public") {
+                const message = {
+                    content: "You’re anonymous now. What’s something you’ve been wanting to say out loud?",
+                    senderId: server.owner,
+                    receiverId: userIdentity.userId,
+                    attachmentUrl: undefined
+                };
+                
+                const message_2 = {
+                    content: "You can send messages, share files, and much more.",
+                    senderId: server.owner,
+                    receiverId: userIdentity.userId,
+                    attachmentUrl: undefined
+                };
+
+                const message_3 = {
+                    content: "💀",
+                    senderId: server.owner,
+                    receiverId: userIdentity.userId,
+                    attachmentUrl: undefined
+                };
+                
+                await messagesController.sendMessage(server.serverId, message.content, message.senderId, message.receiverId, message.attachmentUrl);
+                await messagesController.sendMessage(server.serverId, message_2.content, message_2.senderId, message_2.receiverId, message_2.attachmentUrl);
+                await messagesController.sendMessage(server.serverId, message_3.content, message_3.senderId, message_3.receiverId, message_3.attachmentUrl);
+            }
 
             // Return server details needed for joining
             response.status(200).json({
