@@ -484,6 +484,7 @@ export class StatisticsController {
     static async updatePreviousStats(): Promise<UpdateResult> {
         try {
             const currentStats = await AppStatistics.findOne({ id: STATS_ID });
+
             if (!currentStats) {
                 const stats = await AppStatistics.findOneAndUpdate(
                     { id: STATS_ID },
@@ -498,11 +499,11 @@ export class StatisticsController {
                 return { success: true, data: stats };
             }
 
-            const lastUpdated = currentStats.lastUpdated;
             const today = new Date();
-            const isNotToday = lastUpdated.getDate() !== today.getDate() ||
-                             lastUpdated.getMonth() !== today.getMonth() ||
-                             lastUpdated.getFullYear() !== today.getFullYear();
+            const isNotToday = currentStats.previousStats && currentStats.previousStats.length > 0 ?  currentStats.previousStats[0].recordedOn.getDate() !== today.getDate() ||
+                             currentStats.previousStats[0].recordedOn.getMonth() !== today.getMonth() ||
+                             currentStats.previousStats[0].recordedOn.getFullYear() !== today.getFullYear() : true;
+
 
             if (isNotToday) {
                 const stats = await AppStatistics.findOneAndUpdate(
