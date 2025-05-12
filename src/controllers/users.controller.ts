@@ -58,7 +58,6 @@ class UserController {
 
         const username = generateUsername(`${dbUser.userId}-${serverId}`);
         
-        console.log(`User ${username} added to Server ${serverId}`);
     }
 
     public async removeUserFromServer(serverId: string, userId: string): Promise<void> {
@@ -79,8 +78,6 @@ class UserController {
         );
 
         await StatisticsController.decrementActiveUsers();
-        
-        console.log(`User ${userId} removed from Server ${serverId}`);
     }
 
     public async getActiveUsers(serverId: string): Promise<ServerUser[]> {
@@ -128,7 +125,6 @@ class UserController {
 
         server.approvedUsers = [];
         await server.save();
-        console.log(`Server ${serverId} users cleared`);
     }
 
     public async isUserInServer(serverId: string, userId: string): Promise<boolean> {

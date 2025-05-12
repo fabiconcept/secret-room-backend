@@ -363,11 +363,6 @@ class ServerController implements IServerController {
                 throw new AppError(400, "Fingerprint is required");
             }
     
-            console.log({
-                inviteCode,
-                fingerprint
-            });
-            
             const invitation = await Invitation.findOne({ inviteCode });
             
             if (!invitation) {
@@ -566,7 +561,7 @@ class ServerController implements IServerController {
             // Delete server
             await Server.deleteOne({ serverId });
 
-            await StatisticsController.decrementActiveServers();
+            await StatisticsController.decrementActiveServers(1);
 
             const socketService = getSocketService();
             socketService.broadcastServerDeleted(serverId);
@@ -587,7 +582,6 @@ class ServerController implements IServerController {
             // Check if the server has expired
             const expirationDate = new Date(server.expiresAt).getTime();
 
-            console.log(`Checking server ${server.serverId}, ${expirationDate} vs ${new Date().getTime()}, date text: ${new Date(server.expiresAt)} and ${new Date().toISOString()}...`);
             if (expirationDate < new Date().getTime()) {
                 counter++;
                 await this.deleteServerById(server.serverId);
@@ -595,7 +589,6 @@ class ServerController implements IServerController {
             }
         }
 
-        console.log(`${counter} servers have been deleted, ${expiredServers.length - counter} servers remain`);
     }
 }
 

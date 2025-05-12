@@ -124,7 +124,6 @@ class MessagesController {
     }
 
     public async markMessageRead(messageId: string): Promise<void> {
-        console.log('Marking message read in controller:', messageId)
         try {
             const message = await Message.findOne({ messageId });
             if (!message) {

@@ -250,7 +250,6 @@ class ServerSocketService {
     }
 
     public broadcastMessageRead(messageId: string, serverId: string): void {
-        console.log('Broadcasting message read:', messageId, serverId);
         this.io.in(serverId).emit('message_read', messageId);
     }
 

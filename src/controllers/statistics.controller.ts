@@ -16,8 +16,6 @@ type UpdateResult = { success: boolean; data?: any; error?: Error };
 export class StatisticsController {
     public static async initialize() {
         try {
-
-            console.log('Initializing statistics...');
             const stats = await AppStatistics.findOne({ id: STATS_ID });
 
             if (stats) return;
@@ -73,8 +71,6 @@ export class StatisticsController {
                 activeUsers: users.filter((u) => u.isOnline === true).length,
                 activeServers: servers.length
             };
-
-            console.log(payload);
 
             await AppStatistics.create(payload);
         } catch (error) {
