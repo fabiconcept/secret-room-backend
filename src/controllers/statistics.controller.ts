@@ -500,9 +500,10 @@ export class StatisticsController {
             }
 
             const today = new Date();
-            const isNotToday = currentStats.previousStats && currentStats.previousStats.length > 0 ?  currentStats.previousStats[0].recordedOn.getDate() !== today.getDate() ||
-                             currentStats.previousStats[0].recordedOn.getMonth() !== today.getMonth() ||
-                             currentStats.previousStats[0].recordedOn.getFullYear() !== today.getFullYear() : true;
+            const lastEntry = currentStats.previousStats[currentStats.previousStats.length - 1];
+            const isNotToday = lastEntry.recordedOn.getDate() !== today.getDate() ||
+                             lastEntry.recordedOn.getMonth() !== today.getMonth() ||
+                             lastEntry.recordedOn.getFullYear() !== today.getFullYear();
 
 
             if (isNotToday) {
