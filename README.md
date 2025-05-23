@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/badge/languages-1-blue?style=flat-square" alt="Languages" />
   </div>
 
-  <h2>Built with the tools and technologies:</h2>
+  <h2>Built with these tools and technologies:</h2>
 
   <div>
     <img src="https://img.shields.io/badge/-Express-black?style=flat-square&logo=express" alt="Express" />
